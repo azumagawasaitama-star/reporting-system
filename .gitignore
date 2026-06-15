@@ -13,3 +13,8 @@ venv/
 # IDEs
 .vscode/
 .idea/
+
+# Agent & Logs
+.superpowers/
+*.log
+*.pid

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>現場報告システム</title>
+    <style>
+        :root {
+            --primary-color: #007AFF;
+            --status-none: #E5E5EA;
+            --status-doing: #FF9500;
+            --status-done: #34C759;
+            --bg-color: #F2F2F7;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-color); margin: 0; padding: 10px; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        h1 { font-size: 1.1rem; margin: 0; }
+        .view-controls { display: flex; background: #DDD; padding: 2px; border-radius: 8px; font-size: 0.75rem; }
+        .view-btn { padding: 4px 12px; border: none; border-radius: 6px; cursor: pointer; background: transparent; color: #666; font-weight: bold; }
+        .view-btn.active { background: white; color: #000; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .input-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 10px; }
+        label { display: block; font-size: 0.7rem; color: #666; margin-bottom: 3px; font-weight: bold; }
+        select, textarea, input { width: 100%; padding: 10px; border: 1px solid #DDD; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; background: #FFF; }
+        .main-btn { width: 100%; padding: 14px; background-color: var(--primary-color); color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: opacity 0.2s; }
+
+        .mode-pc #report-list-pc { display: block; }
+        .mode-pc #report-list-mobile { display: none; }
+        .mode-mobile #report-list-pc { display: none; }
+        .mode-mobile #report-list-mobile { display: block; }
+
+        @media (max-width: 800px) {
+            .mode-auto #report-list-pc { display: none; }
+            .mode-auto #report-list-mobile { display: block; }
+            .input-grid { grid-template-columns: 1fr 1fr; }
+        }
+        @media (min-width: 801px) {
+            .mode-auto #report-list-pc { display: block; }
+            .mode-auto #report-list-mobile { display: none; }
+            .input-grid { grid-template-columns: repeat(5, 1fr); }
+        }
+
+        table { width: 100%; border-collapse: separate; border-spacing: 0; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #F0F0F0; vertical-align: top; }
+        th { background: #F8F8F8; color: #666; font-size: 0.7rem; }
+        .history-box { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
+        .history-row { padding: 10px; border-radius: 8px; border: 1px solid #EEE; position: relative; }
+        .history-latest { background: #F2F8FF; border-left: 4px solid var(--primary-color); }
+        .history-old { background: #FAFAFA; color: #777; font-size: 0.85rem; }
+        .history-meta { font-size: 0.7rem; color: #888; margin-bottom: 3px; display: flex; justify-content: space-between; }
+        .report-card { background: white; padding: 15px; border-radius: 14px; border-left: 6px solid var(--primary-color); margin-bottom: 12px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .status-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 6px; font-weight: bold; }
+        .status-doing { background: var(--status-doing); color: white; }
+        .status-done { background: var(--status-done); color: white; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: flex-end; }
+        .modal-content { background: white; width: 100%; max-width: 600px; border-radius: 20px 20px 0 0; padding: 25px; box-sizing: border-box; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .timeline-item { border-left: 2px solid #EEE; padding-left: 20px; margin-bottom: 20px; position: relative; }
+        .timeline-item::before { content: ''; position: absolute; left: -7px; top: 0; width: 12px; height: 12px; background: white; border: 2px solid var(--primary-color); border-radius: 50%; }
+    </style>
+</head>
+<body class="mode-auto">
+    <div class="container">
+        <header>
+            <h1>現場報告システム <span id="ws-status" style="font-size:0.6rem; color:#888;">● 接続中</span></h1>
+            <div class="view-controls">
+                <button class="view-btn active" id="btn-auto" onclick="setViewMode('auto')">自動</button>
+                <button class="view-btn" id="btn-pc" onclick="setViewMode('pc')">PC</button>
+                <button class="view-btn" id="btn-mobile" onclick="setViewMode('mobile')">スマホ</button>
+            </div>
+        </header>
+
+        <div class="card">
+            <div class="input-grid">
+                <div><label>現場名</label><select id="event-name"><option value="フクダ電子アリーナ">フクダ電子アリーナ</option><option value="その他">その他</option></select></div>
+                <div><label>報告者</label><input type="text" id="sender" placeholder="名前"></div>
+                <div><label>発生場所</label><div id="location-container"></div></div>
+                <div><label>詳細場所</label><div id="sub-location-container"></div></div>
+                <div><label>状況</label><select id="status"><option value="未対応">未対応</option><option value="対応中">対応中</option><option value="完了">完了</option></select></div>
+            </div>
+            <div id="location-other-group" style="display:none; margin-bottom:10px;"><input type="text" id="location-other" placeholder="詳細を入力"></div>
+            <div class="input-grid" style="grid-template-columns: 1fr 1fr;">
+                <div><label>カテゴリ</label><select id="category"><option value="">選択</option><option value="医事対応">医事対応</option><option value="クレーム">クレーム</option><option value="混雑状況">混雑状況</option><option value="その他">その他</option></select></div>
+                <div id="detail-group" style="visibility:hidden;"><label>詳細種別</label><select id="detail"></select></div>
+            </div>
+            <div style="margin-bottom:12px;"><label>内容</label><textarea id="message" rows="2" placeholder="詳細な状況を入力"></textarea></div>
+            <button class="main-btn" onclick="sendReport()">報告を送信</button>
+        </div>
+
+        <div id="report-list-pc"><table><thead><tr><th style="width:140px;">現場 / 場所</th><th style="width:100px;">報告者</th><th style="width:110px;">カテゴリ</th><th>対応履歴（最新が上）</th><th style="width:80px;">状況</th></tr></thead><tbody id="pc-table-body"></tbody></table></div>
+        <div id="report-list-mobile"><div id="mobile-card-list"></div></div>
+    </div>
+
+    <div id="modal" class="modal-overlay" onclick="closeModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div id="modal-view-mode">
+                <h2 style="margin-top:0; font-size:1.2rem;">詳細タイムライン</h2>
+                <div id="modal-timeline"></div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button style="flex:1; padding:12px; border-radius:10px; border:none; background:#EEE;" onclick="closeModal()">閉じる</button>
+                    <button style="flex:2; padding:12px; border-radius:10px; border:none; background:var(--primary-color); color:white; font-weight:bold;" onclick="switchMode(true)">追記・修正する</button>
+                </div>
+            </div>
+            <div id="modal-edit-mode" style="display:none;">
+                <h2 style="margin-top:0; font-size:1.1rem;">内容の追記・修正</h2>
+                <div class="input-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:15px;">
+                    <div><label>報告者名（更新者）</label><input type="text" id="edit-sender"></div>
+                    <div><label>現在の状況</label><select id="edit-status"><option value="未対応">未対応</option><option value="対応中">対応中</option><option value="完了">完了</option></select></div>
+                </div>
+                <div class="input-group" style="margin-bottom:15px;">
+                    <label>発生場所</label><input type="text" id="edit-location">
+                </div>
+                <div class="input-group" style="margin-bottom:15px;">
+                    <label>最新の状況（追記）</label><textarea id="edit-message" rows="5" placeholder="新しい状況をここに入力"></textarea>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button style="flex:1; padding:12px; border-radius:10px; border:none; background:#EEE;" onclick="switchMode(false)">戻る</button>
+                    <button style="flex:2; padding:12px; border-radius:10px; border:none; background:var(--primary-color); color:white; font-weight:bold;" onclick="saveEdit()">更新を保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const reports = {};
+        let currentId = null;
+
+        function setViewMode(mode) {
+            document.body.className = 'mode-' + mode;
+            document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('btn-' + mode).classList.add('active');
+            localStorage.setItem('view_mode', mode);
+        }
+        setViewMode(localStorage.getItem('view_mode') || 'auto');
+
+        const eventSelect = document.getElementById('event-name');
+        const locationContainer = document.getElementById('location-container');
+        const subLocationContainer = document.getElementById('sub-location-container');
+
+        // 発生場所リスト
+        const locationPresets = { 
+            'フクダ電子アリーナ': [
+                'なし', '北西ゲート', '東2ゲート', '南西ゲート', 'メインスタンド', 'バックスタンド', '公園', '北サイドスタンド', '南サイドスタンド', '場外案内', '場外駐車場', '1・2駐車場', '第3駐車場', 'フィールド', '館内', 'その他'
+            ] 
+        };
+
+        function updateSubLocationUI() {
+            const loc = document.getElementById('location').value;
+            // とりあえず全て「なし」
+            const subs = ['なし'];
+            subLocationContainer.innerHTML = `<select id="sub-location">${subs.map(s => `<option value="${s}">${s}</option>`).join('')}</select>`;
+            document.getElementById('sub-location').onchange = (e) => localStorage.setItem('sub_location_name', e.target.value);
+        }
+
+        function updateLocationUI() {
+            const eventName = eventSelect.value;
+            localStorage.setItem('event_name', eventName);
+
+            if (locationPresets[eventName]) {
+                locationContainer.innerHTML = `<select id="location">${locationPresets[eventName].map(l => `<option value="${l}">${l}</option>`).join('')}</select>`;
+            } else {
+                locationContainer.innerHTML = `<input type="text" id="location" placeholder="場所入力"></input>`;
+            }
+            
+            const locEl = document.getElementById('location');
+            const saveLoc = () => {
+                localStorage.setItem('location_name', locEl.value);
+                document.getElementById('location-other-group').style.display = locEl.value === 'その他' ? 'block' : 'none';
+                updateSubLocationUI();
+            };
+            locEl.onchange = saveLoc;
+            locEl.oninput = saveLoc;
+            updateSubLocationUI();
+        }
+        eventSelect.onchange = updateLocationUI;
+
+        document.getElementById('location-other').onchange = (e) => localStorage.setItem('location_other', e.target.value);
+
+        const details = { '医事対応': ['発熱', '怪我', '熱中症', 'その他'], 'クレーム': ['待機列', 'スタッフ対応', '設備', 'その他'], '混雑状況': ['入場口', '物販エリア', 'トイレ', '飲食エリア'] };
+        document.getElementById('category').onchange = (e) => {
+            const d = details[e.target.value];
+            const dg = document.getElementById('detail-group');
+            if (d) { dg.style.visibility = 'visible'; document.getElementById('detail').innerHTML = d.map(v => `<option value="${v}">${v}</option>`).join(''); }
+            else dg.style.visibility = 'hidden';
+        };
+
+        let socket;
+        function connect() {
+            socket = new WebSocket(`ws://${window.location.host}/ws`);
+            socket.onopen = () => { document.getElementById('ws-status').style.color = '#34C759'; };
+            socket.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                reports[data.id] = data;
+                render(data);
+                if (currentId === data.id) renderTimeline();
+            };
+            socket.onclose = () => { document.getElementById('ws-status').style.color = '#FF3B30'; setTimeout(connect, 2000); };
+        }
+
+        function sendReport() {
+            const loc = document.getElementById('location').value;
+            const subLoc = document.getElementById('sub-location').value;
+            const finalLoc = loc === 'その他' ? document.getElementById('location-other').value : loc;
+            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            const senderName = document.getElementById('sender').value || 'スタッフ';
+            const msg = {
+                id: Date.now(),
+                event: eventSelect.value,
+                location: finalLoc || 'なし',
+                sub_location: subLoc || 'なし',
+                sender: senderName,
+                category: document.getElementById('category').value || 'その他',
+                detail: document.getElementById('detail').value || '-',
+                message: document.getElementById('message').value,
+                status: document.getElementById('status').value,
+                timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value, status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし' }]
+            };
+            if (!msg.message) return alert("内容を入力してください");
+            socket.send(JSON.stringify(msg));
+            document.getElementById('message').value = '';
+        }
+
+        function render(data) {
+            const statusClass = data.status === '対応中' ? 'status-doing' : (data.status === '完了' ? 'status-done' : '');
+            let row = document.getElementById(`pc-row-${data.id}`);
+            if (!row) { row = document.createElement('tr'); row.id = `pc-row-${data.id}`; row.onclick = () => openModal(data.id); document.getElementById('pc-table-body').prepend(row); }
+            const historyHtml = data.timeline.slice().reverse().map((t, i) => `
+                <div class="history-row ${i === 0 ? 'history-latest' : 'history-old'}">
+                    <div class="history-meta"><span>${t.time} - ${t.sender}</span> <span class="status-badge ${t.status==='対応中'?'status-doing':(t.status==='完了'?'status-done':'')}">${t.status}</span></div>
+                    <div style="font-size:0.75rem; color:#888; margin-bottom:4px;">${t.location} / ${t.sub_location}</div>
+                    <div style="white-space:pre-wrap;">${t.message}</div>
+                </div>
+            `).join('');
+            row.innerHTML = `<td><small>${data.event}</small><br><strong>${data.location}</strong><br><small style="color:#666">${data.sub_location}</small></td><td>${data.sender}</td><td>${data.category}<br><small style="color:#888">${data.detail}</small></td><td><div class="history-box">${historyHtml}</div></td><td><span class="status-badge ${statusClass}">${data.status}</span></td>`;
+
+            let card = document.getElementById(`mobile-card-${data.id}`);
+            if (!card) { card = document.createElement('div'); card.id = `mobile-card-${data.id}`; card.className = 'report-card'; card.onclick = () => openModal(data.id); document.getElementById('mobile-card-list').prepend(card); }
+            card.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span style="font-size:0.75rem; color:#888;">${data.timeline[0].time} / ${data.location} / ${data.sub_location}</span><span class="status-badge ${statusClass}">${data.status}</span></div><div style="font-weight:bold; color:var(--primary-color); font-size:0.9rem;">${data.category}</div><div style="font-size:0.95rem; margin-top:4px;">${data.message}</div><div style="font-size:0.7rem; color:#999; margin-top:6px; text-align:right;">報告者: ${data.sender}</div>`;
+            card.style.borderLeftColor = data.status === '完了' ? 'var(--status-done)' : (data.status === '対応中' ? 'var(--status-doing)' : 'var(--primary-color)');
+        }
+
+        function openModal(id) { currentId = id; switchMode(false); renderTimeline(); document.getElementById('modal').style.display = 'flex'; }
+        function closeModal() { document.getElementById('modal').style.display = 'none'; }
+        function renderTimeline() {
+            const data = reports[currentId];
+            document.getElementById('modal-timeline').innerHTML = data.timeline.slice().reverse().map(t => `<div class="timeline-item"><div class="history-meta"><span>${t.time} - ${t.sender}</span> <span class="status-badge ${t.status==='対応中'?'status-doing':(t.status==='完了'?'status-done':'')}">${t.status}</span></div><div style="font-size:0.8rem; color:#666; margin-bottom:5px;">場所: ${t.location} / ${t.sub_location}</div><div style="white-space:pre-wrap; font-size:0.95rem;">${t.message}</div></div>`).join('');
+        }
+
+        function switchMode(isEdit) {
+            const data = reports[currentId];
+            if (isEdit) {
+                document.getElementById('edit-sender').value = document.getElementById('sender').value;
+                document.getElementById('edit-location').value = data.location;
+                document.getElementById('edit-status').value = data.status;
+                document.getElementById('edit-message').value = "";
+                document.getElementById('modal-view-mode').style.display = 'none';
+                document.getElementById('modal-edit-mode').style.display = 'block';
+            } else {
+                document.getElementById('modal-view-mode').style.display = 'block';
+                document.getElementById('modal-edit-mode').style.display = 'none';
+            }
+        }
+
+        function saveEdit() {
+            const data = reports[currentId];
+            const msg = document.getElementById('edit-message').value;
+            const status = document.getElementById('edit-status').value;
+            const loc = document.getElementById('edit-location').value;
+            const newSender = document.getElementById('edit-sender').value || 'スタッフ';
+            if (!msg) return alert("追記内容を入力してください");
+
+            // 報告者名の端末保存を更新
+            document.getElementById('sender').value = newSender;
+            localStorage.setItem('sender_name', newSender);
+
+            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            const updated = {
+                ...data, location: loc, status: status, message: msg, sender: newSender,
+                timeline: [...data.timeline, { time: time, sender: newSender, message: msg, status: status, location: loc, sub_location: data.sub_location }]
+            };
+            socket.send(JSON.stringify(updated));
+            switchMode(false);
+        }
+
+        document.getElementById('sender').value = localStorage.getItem('sender_name') || '';
+        document.getElementById('sender').onchange = (e) => localStorage.setItem('sender_name', e.target.value);
+        eventSelect.value = localStorage.getItem('event_name') || 'フクダ電子アリーナ';
+        updateLocationUI();
+
+        // 場所の復元
+        const savedLoc = localStorage.getItem('location_name');
+        if (savedLoc) {
+            const locEl = document.getElementById('location');
+            locEl.value = savedLoc;
+            if (locEl.value === 'その他') {
+                document.getElementById('location-other-group').style.display = 'block';
+                document.getElementById('location-other').value = localStorage.getItem('location_other') || '';
+            }
+            updateSubLocationUI();
+            const savedSubLoc = localStorage.getItem('sub_location_name');
+            if (savedSubLoc) {
+                const subLocEl = document.getElementById('sub-location');
+                if (subLocEl) subLocEl.value = savedSubLoc;
+            }
+        }
+
+        connect();
+    </script>
+</body>
+</html>
