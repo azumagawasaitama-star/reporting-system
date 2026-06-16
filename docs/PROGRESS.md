@@ -17,6 +17,7 @@
 - **DB**: Render PostgreSQL (Free)
 - **Web**: Render Web Service (Free)
 - **接続設定**: 環境変数 `DATABASE_URL` を設定済み。
+- **管理画面**: [Render Dashboard](https://dashboard.render.com/web/srv-d8omnln7f7vs73euops0)
 
 ## 次のタスク
 - [ ] Renderでのビルド完了確認と動作テスト。
