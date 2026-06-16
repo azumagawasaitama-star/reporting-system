@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>現場報告システム</title>
+    <!-- SheetJS (xlsx) 読み込み -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
             --primary-color: #007AFF;
@@ -86,7 +88,10 @@
             </div>
             <div class="input-grid">
                 <div style="grid-column: span 1;"><label>状況</label><select id="status"><option value="未対応">未対応</option><option value="対応中">対応中</option><option value="完了">完了</option></select></div>
-                <div style="grid-column: span 4; display: flex; align-items: flex-end; color: #888; font-size: 0.7rem; padding-bottom: 5px;">※日づけと現場名を切り替えると、表示される報告が切り替わります。</div>
+                <div style="grid-column: span 3; display: flex; align-items: flex-end; color: #888; font-size: 0.7rem; padding-bottom: 5px;">※日づけと現場名を切り替えると、表示される報告が切り替わります。</div>
+                <div style="grid-column: span 1; display: flex; align-items: flex-end; justify-content: flex-end;">
+                    <button onclick="downloadExcel()" style="padding: 6px 12px; background: #34C759; color: white; border: none; border-radius: 8px; font-size: 0.8rem; font-weight: bold; cursor: pointer;">Excel保存</button>
+                </div>
             </div>
             <div id="location-other-group" style="display:none; margin-bottom:10px;"><input type="text" id="location-other" placeholder="場所の詳細を入力"></div>
             
@@ -381,6 +386,61 @@
             const data = reports[currentId];
             document.getElementById('modal-timeline').innerHTML = data.timeline.slice().reverse().map(t => `<div class="timeline-item"><div class="history-meta"><span>${t.time} - ${t.sender}</span> <span class="status-badge ${t.status==='対応中'?'status-doing':(t.status==='完了'?'status-done':'')}">${t.status}</span></div><div style="font-size:0.8rem; color:#666; margin-bottom:5px;">場所: ${t.location} / ${t.sub_location}</div><div style="white-space:pre-wrap; font-size:0.95rem;">${t.message}</div></div>`).join('');
         }
+        function downloadExcel() {
+            const selectedDate = dateInput.value;
+            const selectedEvent = eventSelect.value;
+            
+            // フィルタリングされたデータを準備
+            const filteredReports = Object.values(reports)
+                .filter(d => d.date === selectedDate && d.event === selectedEvent)
+                .sort((a,b) => a.id - b.id);
+
+            if (filteredReports.length === 0) return alert("出力するデータがありません");
+
+            const excelData = filteredReports.map(d => {
+                const row = {
+                    "日づけ": d.date,
+                    "現場名": d.event,
+                    "場所": d.location,
+                    "詳細場所": d.sub_location,
+                    "報告者": d.sender,
+                    "カテゴリ": d.category,
+                    "詳細種別": d.detail,
+                    "状況": d.status,
+                    "内容": d.message,
+                    "発生時刻": d.timeline[0].time
+                };
+
+                // 医事対応の詳細列を追加
+                if (d.medical) {
+                    row["性別"] = d.medical.gender || "-";
+                    row["年代"] = d.medical.age || "-";
+                    row["同行者"] = d.medical.companion || "-";
+                    row["車椅子"] = d.medical.wheelchair || "なし";
+                    row["車椅子貸出元"] = d.medical.wheelchair_source || "-";
+                    row["車椅子返却"] = d.medical.wheelchair_return || "-";
+                    row["診断結果"] = d.medical.diagnosis || "-";
+                    row["休憩室"] = d.medical.rest_area || "-";
+                }
+
+                return row;
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(excelData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "報告一覧");
+
+            // 列の幅を自動調整（簡易的）
+            const wscols = [
+                {wch: 12}, {wch: 20}, {wch: 20}, {wch: 15}, {wch: 10}, 
+                {wch: 12}, {wch: 25}, {wch: 15}, {wch: 40}, {wch: 10}
+            ];
+            worksheet['!cols'] = wscols;
+
+            const filename = `報告一覧_${selectedEvent}_${selectedDate}.xlsx`;
+            XLSX.writeFile(workbook, filename);
+        }
+
         function switchMode(isEdit) {
             const data = reports[currentId];
             if (isEdit) {
