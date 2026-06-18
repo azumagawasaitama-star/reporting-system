@@ -77,6 +77,11 @@ async def get():
     with open("static/index.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
+@app.get("/report")
+async def get_report():
+    with open("static/report.html", "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)

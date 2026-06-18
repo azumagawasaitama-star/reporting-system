@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>現場報告フォーム</title>
+    <style>
+        :root {
+            --primary-color: #007AFF;
+            --status-none: #E5E5EA;
+            --status-doing: #FF9500;
+            --status-done: #34C759;
+            --bg-color: #F2F2F7;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-color); margin: 0; padding: 15px; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; }
+        header { margin-bottom: 20px; text-align: center; }
+        h1 { font-size: 1.2rem; margin: 0; color: var(--primary-color); }
+        .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        label { display: block; font-size: 0.75rem; color: #666; margin-bottom: 4px; font-weight: bold; }
+        select, textarea, input { width: 100%; padding: 12px; border: 1px solid #DDD; border-radius: 10px; font-size: 1rem; box-sizing: border-box; background: #FFF; -webkit-appearance: none; }
+        .main-btn { width: 100%; padding: 16px; background-color: var(--primary-color); color: white; border: none; border-radius: 14px; font-weight: bold; cursor: pointer; font-size: 1.1rem; transition: transform 0.1s, opacity 0.2s; margin-top: 10px; }
+        .main-btn:active { transform: scale(0.98); opacity: 0.9; }
+
+        .check-button { display: inline-block; position: relative; cursor: pointer; user-select: none; }
+        .check-button input { position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0; }
+        .check-label { display: block; padding: 8px 14px; background: #EEE; border-radius: 10px; font-size: 0.9rem; font-weight: bold; transition: all 0.2s; color: #555; border: 1px solid #DDD; }
+        .check-button input:checked + .check-label { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+
+        #success-msg { display: none; background: var(--status-done); color: white; padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 15px; font-weight: bold; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>現場報告フォーム <span id="ws-status" style="font-size:0.6rem; color:#888;">● 接続中</span></h1>
+        </header>
+
+        <div id="success-msg">送信が完了しました！</div>
+
+        <div class="card">
+            <div class="input-grid">
+                <div><label>日づけ</label><input type="date" id="event-date"></div>
+                <div><label>現場名</label><select id="event-name"><option value="フクダ電子アリーナ">フクダ電子アリーナ</option><option value="その他">その他</option></select></div>
+            </div>
+            <div class="input-grid">
+                <div><label>報告者</label><input type="text" id="sender" placeholder="名前"></div>
+                <div><label>状況</label><select id="status"><option value="未対応">未対応</option><option value="対応中">対応中</option><option value="完了">完了</option></select></div>
+            </div>
+            <div class="input-grid" style="grid-template-columns: 1fr 1fr;">
+                <div><label>発生場所</label><div id="location-container"></div></div>
+                <div><label>詳細場所</label><div id="sub-location-container"></div></div>
+            </div>
+            <div id="location-other-group" style="display:none; margin-bottom:12px;"><input type="text" id="location-other" placeholder="場所の詳細を入力"></div>
+            
+            <div style="margin-bottom:12px;">
+                <label>カテゴリ</label>
+                <select id="category"><option value="">選択してください</option><option value="医事対応">医事対応</option><option value="ご意見・ご要望">ご意見・ご要望</option><option value="物損">物損</option><option value="感謝の声">感謝の声</option><option value="気づいたこと">気づいたこと</option><option value="その他">その他</option></select>
+            </div>
+
+            <div id="non-medical-detail-area" style="display:none; margin-bottom:12px;">
+                <label id="detail-label">詳細種別</label>
+                <div id="detail-container"></div>
+            </div>
+
+            <div id="category-other-group" style="display:none; margin-bottom:12px;"><input type="text" id="category-other" placeholder="詳細を入力"></div>
+
+            <div id="medical-fields" style="display:none; border:2px solid #FF9500; border-radius:14px; padding:15px; margin-bottom:15px; background:#FFF9F2;">
+                <h3 style="font-size:0.9rem; margin-top:0; color:#FF9500;">医事・救護詳細</h3>
+                <div style="margin-bottom:15px;">
+                    <label>初期症状（複数選択可）</label>
+                    <div id="medical-detail-container" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:5px;"></div>
+                </div>
+                <div class="input-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom:12px;">
+                    <div><label>性別</label><select id="med-gender"><option value="不明">不明</option><option value="男性">男性</option><option value="女性">女性</option></select></div>
+                    <div><label>年代</label><select id="med-age"><option value="不明">不明</option><option value="10代未満">10代未満</option><option value="10代">10代</option><option value="20代">20代</option><option value="30代">30代</option><option value="40代">40代</option><option value="50代">50代</option><option value="60代">60代</option><option value="70代以上">70代以上</option></select></div>
+                    <div><label>同行者</label><select id="med-companion"><option value="ひとり">ひとり</option><option value="家族">家族</option><option value="知人">知人</option></select></div>
+                </div>
+                <div class="input-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+                    <div><label>車椅子</label><select id="med-wheelchair" onchange="toggleWheelchairFields()"><option value="なし">なし</option><option value="あり">あり</option></select></div>
+                    <div id="med-wheelchair-source-group" style="display:none;"><label>貸出元</label><select id="med-wheelchair-source"><option value="医務室">医務室</option><option value="控室8">控室8</option><option value="多目的室">多目的室</option><option value="エレベーターホール">エレベーターホール</option></select></div>
+                    <div id="med-wheelchair-return-group" style="display:none;"><label>返却</label><select id="med-wheelchair-return"><option value="未返却">未返却</option><option value="返却済み">返却済み</option></select></div>
+                </div>
+            </div>
+
+            <div style="margin-bottom:15px;"><label>内容・メッセージ</label><textarea id="message" rows="3" placeholder="詳細な状況を入力"></textarea></div>
+            <button class="main-btn" onclick="sendReport()">報告を送信</button>
+        </div>
+    </div>
+
+    <script>
+        const dateInput = document.getElementById('event-date');
+        const eventSelect = document.getElementById('event-name');
+        const locationContainer = document.getElementById('location-container');
+        const subLocationContainer = document.getElementById('sub-location-container');
+
+        const now = new Date();
+        const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000)).toISOString().split('T')[0];
+        dateInput.value = jstDate;
+
+        const locationPresets = { 'フクダ電子アリーナ': ['なし', '北西ゲート', '東2ゲート', '南西ゲート', 'メインスタンド', 'バックスタンド', '公園', '北サイドスタンド', '南サイドスタンド', '場外案内', '場外駐車場', '1・2駐車場', '第3駐車場', 'フィールド', '館内', 'その他'] };
+        function updateSubLocationUI() {
+            const loc = document.getElementById('location').value;
+            subLocationContainer.innerHTML = `<select id="sub-location"><option value="なし">なし</option></select>`;
+        }
+        function updateLocationUI() {
+            const eventName = eventSelect.value;
+            if (locationPresets[eventName]) { locationContainer.innerHTML = `<select id="location">${locationPresets[eventName].map(l => `<option value="${l}">${l}</option>`).join('')}</select>`; }
+            else { locationContainer.innerHTML = `<input type="text" id="location" placeholder="場所入力"></input>`; }
+            const locEl = document.getElementById('location');
+            locEl.onchange = () => {
+                document.getElementById('location-other-group').style.display = locEl.value === 'その他' ? 'block' : 'none';
+                updateSubLocationUI();
+            };
+            updateSubLocationUI();
+        }
+        eventSelect.onchange = updateLocationUI;
+        updateLocationUI();
+
+        const details = { 
+            '医事対応': ['一時失神', '意識なし', 'めまい', '寒気・震え', '腹痛', '吐き気', '頭痛', '過呼吸', '外傷・出血', '動悸', 'その他'], 
+            'ご意見・ご要望': ['待機列', '接客対応', '設備', 'その他'], 
+            '物損': ['建物', '備品', '車両', 'その他'], 
+            '感謝の声': ['運営', '接客', '演出', 'その他'], 
+            '気づいたこと': ['清掃', '案内表示', '不具合', 'その他'],
+            'その他': ['その他']
+        };
+
+        document.getElementById('category').onchange = () => {
+            const cat = document.getElementById('category').value;
+            const d = details[cat];
+            if (!d) return;
+            if (cat === '医事対応') {
+                document.getElementById('medical-fields').style.display = 'block';
+                document.getElementById('non-medical-detail-area').style.display = 'none';
+                document.getElementById('medical-detail-container').innerHTML = d.map(v => `<label class="check-button"><input type="checkbox" name="med-detail" value="${v}" onchange="checkCategoryOther()"><span class="check-label">${v}</span></label>`).join('');
+            } else {
+                document.getElementById('medical-fields').style.display = 'none';
+                document.getElementById('non-medical-detail-area').style.display = 'block';
+                document.getElementById('detail-group').style.visibility = 'visible';
+                document.getElementById('detail-container').innerHTML = `<select id="detail" onchange="checkCategoryOther()">${d.map(v => `<option value="${v}">${v}</option>`).join('')}</select>`;
+            }
+            checkCategoryOther();
+        };
+
+        function toggleWheelchairFields() {
+            const used = document.getElementById('med-wheelchair').value === 'あり';
+            document.getElementById('med-wheelchair-source-group').style.display = used ? 'block' : 'none';
+            document.getElementById('med-wheelchair-return-group').style.display = used ? 'block' : 'none';
+        }
+
+        function checkCategoryOther() {
+            const cat = document.getElementById('category').value;
+            let detOther = false;
+            if (cat === '医事対応') { detOther = Array.from(document.querySelectorAll('input[name="med-detail"]:checked')).some(c => c.value === 'その他'); }
+            else { const detEl = document.getElementById('detail'); detOther = detEl && detEl.value === 'その他'; }
+            document.getElementById('category-other-group').style.display = (cat === 'その他' || detOther) ? 'block' : 'none';
+        }
+
+        let socket;
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            socket.onopen = () => { document.getElementById('ws-status').style.color = '#34C759'; };
+            socket.onclose = () => { document.getElementById('ws-status').style.color = '#FF3B30'; setTimeout(connect, 2000); };
+        }
+
+        function sendReport() {
+            const loc = document.getElementById('location').value;
+            const subLoc = document.getElementById('sub-location').value;
+            const finalLoc = loc === 'その他' ? document.getElementById('location-other').value : loc;
+            const cat = document.getElementById('category').value;
+            if (!cat) return alert("カテゴリを選択してください");
+
+            let finalDet = "-";
+            if (cat === '医事対応') { finalDet = Array.from(document.querySelectorAll('input[name="med-detail"]:checked')).map(c => c.value).join(', ') || 'なし'; }
+            else { const detEl = document.getElementById('detail'); finalDet = detEl ? detEl.value : "-"; }
+            const catOther = document.getElementById('category-other').value;
+            if (finalDet.includes('その他') || cat === 'その他') finalDet = catOther || finalDet;
+
+            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            const senderName = document.getElementById('sender').value || 'スタッフ';
+
+            let medicalData = null;
+            if (cat === '医事対応') {
+                medicalData = {
+                    gender: document.getElementById('med-gender').value,
+                    age: document.getElementById('med-age').value,
+                    companion: document.getElementById('med-companion').value,
+                    wheelchair: document.getElementById('med-wheelchair').value,
+                    wheelchair_source: document.getElementById('med-wheelchair-source').value,
+                    wheelchair_return: document.getElementById('med-wheelchair-return').value,
+                    diagnosis: null, rest_area: null
+                };
+            }
+
+            const msg = {
+                id: Date.now(), date: dateInput.value, event: eventSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat, detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData,
+                timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData }]
+            };
+            socket.send(JSON.stringify(msg));
+            
+            // 完了表示
+            document.getElementById('success-msg').style.display = 'block';
+            setTimeout(() => { document.getElementById('success-msg').style.display = 'none'; }, 3000);
+
+            // フォームリセット
+            document.getElementById('message').value = '';
+            document.querySelectorAll('input[name="med-detail"]').forEach(c => c.checked = false);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        document.getElementById('sender').value = localStorage.getItem('sender_name') || '';
+        document.getElementById('sender').onchange = (e) => localStorage.setItem('sender_name', e.target.value);
+        connect();
+    </script>
+</body>
+</html>
