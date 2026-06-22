@@ -96,7 +96,7 @@
             <div id="location-other-group" style="display:none; margin-bottom:10px;"><input type="text" id="location-other" placeholder="場所の詳細を入力"></div>
             
             <div class="input-grid" style="grid-template-columns: 1fr;">
-                <div><label>カテゴリ</label><select id="category"><option value="">選択</option><option value="医事対応">医事対応</option><option value="ご意見・ご要望">ご意見・ご要望</option><option value="物損">物損</option><option value="感謝の声">感謝の声</option><option value="気づいたこと">気づいたこと</option><option value="その他">その他</option></select></div>
+                <div><label>カテゴリ</label><select id="category"><option value="なし">なし</option><option value="医事対応">医事対応</option><option value="ご意見・ご要望">ご意見・ご要望</option><option value="物損">物損</option><option value="感謝の声">感謝の声</option><option value="気づいたこと">気づいたこと</option><option value="その他">その他</option></select></div>
             </div>
 
             <div id="non-medical-detail-area" style="display:none; margin-top:10px;">
@@ -112,17 +112,17 @@
                     <div id="medical-detail-container" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:5px;"></div>
                 </div>
                 <div class="input-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom:10px;">
-                    <div><label>性別</label><select id="med-gender"><option value="不明">不明</option><option value="男性">男性</option><option value="女性">女性</option></select></div>
-                    <div><label>年代</label><select id="med-age"><option value="不明">不明</option><option value="10代未満">10代未満</option><option value="10代">10代</option><option value="20代">20代</option><option value="30代">30代</option><option value="40代">40代</option><option value="50代">50代</option><option value="60代">60代</option><option value="70代以上">70代以上</option></select></div>
-                    <div><label>同行者</label><select id="med-companion"><option value="ひとり">ひとり</option><option value="家族">家族</option><option value="知人">知人</option></select></div>
+                    <div><label>性別</label><select id="med-gender"><option value="なし">なし</option><option value="不明">不明</option><option value="男性">男性</option><option value="女性">女性</option></select></div>
+                    <div><label>年代</label><select id="med-age"><option value="なし">なし</option><option value="不明">不明</option><option value="10代未満">10代未満</option><option value="10代">10代</option><option value="20代">20代</option><option value="30代">30代</option><option value="40代">40代</option><option value="50代">50代</option><option value="60代">60代</option><option value="70代以上">70代以上</option></select></div>
+                    <div><label>同行者</label><select id="med-companion"><option value="なし">なし</option><option value="ひとり">ひとり</option><option value="家族">家族</option><option value="知人">知人</option></select></div>
                 </div>
                 <div class="input-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom:10px;">
                     <div><label>車椅子使用</label><select id="med-wheelchair" onchange="toggleWheelchairFields()"><option value="なし">なし</option><option value="あり">あり</option></select></div>
-                    <div id="med-wheelchair-source-group" style="display:none;"><label>貸出場所</label><select id="med-wheelchair-source"><option value="医務室">医務室</option><option value="控室8">控室8</option><option value="多目的室">多目的室</option><option value="エレベーターホール">エレベーターホール</option></select></div>
-                    <div id="med-wheelchair-return-group" style="display:none;"><label>返却状況</label><select id="med-wheelchair-return"><option value="未返却">未返却</option><option value="返却済み">返却済み</option></select></div>
+                    <div id="med-wheelchair-source-group" style="display:none;"><label>貸出場所</label><select id="med-wheelchair-source"><option value="なし">なし</option><option value="医務室">医務室</option><option value="控室8">控室8</option><option value="多目的室">多目的室</option><option value="エレベーターホール">エレベーターホール</option></select></div>
+                    <div id="med-wheelchair-return-group" style="display:none;"><label>返却状況</label><select id="med-wheelchair-return"><option value="なし">なし</option><option value="未返却">未返却</option><option value="返却済み">返却済み</option></select></div>
                 </div>
                 <div id="med-restarea-group" style="display:none; margin-bottom:10px;">
-                    <label>休憩室の場所</label><select id="med-restarea"><option value="多目的室">多目的室</option><option value="レストラン">レストラン</option><option value="赤ちゃん休憩室">赤ちゃん休憩室</option></select>
+                    <label>休憩室の場所</label><select id="med-restarea"><option value="なし">なし</option><option value="多目的室">多目的室</option><option value="レストラン">レストラン</option><option value="赤ちゃん休憩室">赤ちゃん休憩室</option></select>
                 </div>
                 <div style="margin-top:15px; border-top:1px solid #FFD8A8; padding-top:15px; background: rgba(255, 149, 0, 0.05); margin-left: -15px; margin-right: -15px; padding-left: 15px; padding-right: 15px; border-radius: 0 0 12px 12px;">
                     <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:bold; color:#E67E22; font-size:0.85rem;">
@@ -130,7 +130,7 @@
                     </label>
                     <div id="med-diagnosis-group" style="display:none; margin-top:12px;">
                         <div class="input-grid" style="grid-template-columns: 1fr 1fr;">
-                            <div><label>診断名</label><select id="med-diagnosis-select" onchange="checkDiagnosisOther()"><option value="熱中症">熱中症</option><option value="打撲・捻挫">打撲・捻挫</option><option value="切り傷・擦り傷">切り傷・擦り傷</option><option value="貧血">貧血</option><option value="その他">その他</option></select></div>
+                            <div><label>診断名</label><select id="med-diagnosis-select" onchange="checkDiagnosisOther()"><option value="なし">なし</option><option value="熱中症">熱中症</option><option value="打撲・捻挫">打撲・捻挫</option><option value="切り傷・擦り傷">切り傷・擦り傷</option><option value="貧血">貧血</option><option value="その他">その他</option></select></div>
                             <div id="med-diagnosis-other-group" style="display:none;"><label>詳細を入力</label><input type="text" id="med-diagnosis-other"></div>
                         </div>
                     </div>
@@ -175,11 +175,11 @@
                 <div id="edit-medical-fields" style="display:none; border:1px solid #FF9500; border-radius:10px; padding:15px; margin-bottom:15px; background:#FFF9F2;">
                     <div class="input-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom:10px;">
                         <div><label>車椅子使用</label><select id="edit-med-wheelchair" onchange="toggleEditWheelchairFields()"><option value="なし">なし</option><option value="あり">あり</option></select></div>
-                        <div id="edit-med-wheelchair-source-group"><label>貸出元</label><select id="edit-med-wheelchair-source"><option value="医務室">医務室</option><option value="控室8">控室8</option><option value="多目的室">多目的室</option><option value="エレベーターホール">エレベーターホール</option></select></div>
-                        <div id="edit-med-wheelchair-return-group"><label>返却状況</label><select id="edit-med-wheelchair-return"><option value="未返却">未返却</option><option value="返却済み">返却済み</option></select></div>
+                        <div id="edit-med-wheelchair-source-group"><label>貸出元</label><select id="edit-med-wheelchair-source"><option value="なし">なし</option><option value="医務室">医務室</option><option value="控室8">控室8</option><option value="多目的室">多目的室</option><option value="エレベーターホール">エレベーターホール</option></select></div>
+                        <div id="edit-med-wheelchair-return-group"><label>返却状況</label><select id="edit-med-wheelchair-return"><option value="なし">なし</option><option value="未返却">未返却</option><option value="返却済み">返却済み</option></select></div>
                     </div>
                     <div id="edit-med-restarea-group" style="display:none; margin-bottom:10px;">
-                        <label>休憩室の場所</label><select id="edit-med-restarea"><option value="多目的室">多目的室</option><option value="レストラン">レストラン</option><option value="赤ちゃん休憩室">赤ちゃん休憩室</option></select>
+                        <label>休憩室の場所</label><select id="edit-med-restarea"><option value="なし">なし</option><option value="多目的室">多目的室</option><option value="レストラン">レストラン</option><option value="赤ちゃん休憩室">赤ちゃん休憩室</option></select>
                     </div>
                     <div style="margin-top:15px; border-top:1px solid #FFD8A8; padding-top:15px; background: rgba(255, 149, 0, 0.05); margin-left: -15px; margin-right: -15px; padding-left: 15px; padding-right: 15px; border-radius: 0 0 10px 10px;">
                         <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:bold; color:#E67E22; font-size:0.85rem;">
@@ -187,7 +187,7 @@
                         </label>
                         <div id="edit-med-diagnosis-group" style="display:none; margin-top:12px;">
                             <div class="input-grid" style="grid-template-columns: 1fr 1fr;">
-                                <div><label>診断名</label><select id="edit-med-diagnosis-select" onchange="checkEditDiagnosisOther()"><option value="熱中症">熱中症</option><option value="打撲・捻挫">打撲・捻挫</option><option value="切り傷・擦り傷">切り傷・擦り傷</option><option value="貧血">貧血</option><option value="その他">その他</option></select></div>
+                                <div><label>診断名</label><select id="edit-med-diagnosis-select" onchange="checkEditDiagnosisOther()"><option value="なし">なし</option><option value="熱中症">熱中症</option><option value="打撲・捻挫">打撲・捻挫</option><option value="切り傷・擦り傷">切り傷・擦り傷</option><option value="貧血">貧血</option><option value="その他">その他</option></select></div>
                                 <div id="edit-med-diagnosis-other-group" style="display:none;"><label>詳細を入力</label><input type="text" id="edit-med-diagnosis-other"></div>
                             </div>
                         </div>
@@ -294,7 +294,7 @@
                 document.getElementById('medical-detail-container').innerHTML = d.map(v => `<label class="check-button"><input type="checkbox" name="med-detail" value="${v}" onchange="checkCategoryOther()"><span class="check-label">${v}</span></label>`).join('');
             } else {
                 document.getElementById('detail-group').style.visibility = 'visible';
-                document.getElementById('detail-container').innerHTML = `<select id="detail" onchange="checkCategoryOther()">${d.map(v => `<option value="${v}">${v}</option>`).join('')}</select>`;
+                document.getElementById('detail-container').innerHTML = `<select id="detail" onchange="checkCategoryOther()"><option value="なし">なし</option>${d.map(v => `<option value="${v}">${v}</option>`).join('')}</select>`;
             }
         }
         function toggleWheelchairFields() {
