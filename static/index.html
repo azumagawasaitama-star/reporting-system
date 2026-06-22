@@ -138,6 +138,17 @@
             </div>
 
             <div style="margin-bottom:12px; margin-top:10px;"><label>内容</label><textarea id="message" rows="2" placeholder="詳細な状況を入力"></textarea></div>
+
+            <div style="margin-bottom:12px;">
+                <label>写真（複数選択可）</label>
+                <label for="photo-input" id="photo-label" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border:2px dashed #DDD; border-radius:10px; cursor:pointer; color:#666; font-size:0.85rem; background:#FAFAFA;">
+                    📷 写真を選択
+                </label>
+                <input type="file" id="photo-input" accept="image/*" multiple style="display:none;" onchange="previewPhotos()">
+                <div id="photo-preview" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;"></div>
+                <div id="upload-status" style="font-size:0.75rem; color:#888; margin-top:4px;"></div>
+            </div>
+
             <button class="main-btn" onclick="sendReport()">報告を送信</button>
         </div>
 
@@ -316,7 +327,47 @@
             socket.onclose = () => { document.getElementById('ws-status').style.color = '#FF3B30'; setTimeout(connect, 2000); };
         }
 
-        function sendReport() {
+        const CLOUDINARY_CLOUD_NAME = 'dujcnkle9';
+        const CLOUDINARY_UPLOAD_PRESET = 'yt6zyddz';
+
+        function previewPhotos() {
+            const files = document.getElementById('photo-input').files;
+            const preview = document.getElementById('photo-preview');
+            preview.innerHTML = '';
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.style.cssText = 'width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid #DDD;';
+                    preview.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            });
+            document.getElementById('photo-label').textContent = files.length > 0 ? `📷 ${files.length}枚選択済み` : '📷 写真を選択';
+        }
+
+        async function uploadPhotos() {
+            const files = document.getElementById('photo-input').files;
+            if (files.length === 0) return [];
+            const status = document.getElementById('upload-status');
+            const urls = [];
+            for (let i = 0; i < files.length; i++) {
+                status.textContent = `アップロード中... (${i + 1}/${files.length})`;
+                const formData = new FormData();
+                formData.append('file', files[i]);
+                formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+                const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+                    method: 'POST', body: formData
+                });
+                const data = await res.json();
+                urls.push(data.secure_url);
+            }
+            status.textContent = '';
+            return urls;
+        }
+
+        async function sendReport() {
             const loc = document.getElementById('location').value;
             const subLoc = document.getElementById('sub-location').value;
             const finalLoc = loc === 'その他' ? document.getElementById('location-other').value : loc;
@@ -345,12 +396,16 @@
                 };
             }
 
+            const photoUrls = await uploadPhotos();
             const msg = {
-                id: Date.now(), date: dateInput.value, event: eventSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat || 'その他', detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData,
+                id: Date.now(), date: dateInput.value, event: eventSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat || 'その他', detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls,
                 timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData }]
             };
             socket.send(JSON.stringify(msg));
             document.getElementById('message').value = ''; document.getElementById('category-other').value = '';
+            document.getElementById('photo-input').value = '';
+            document.getElementById('photo-preview').innerHTML = '';
+            document.getElementById('photo-label').textContent = '📷 写真を選択';
             document.getElementById('med-diagnosis-check').checked = false; document.getElementById('med-diagnosis-other').value = '';
             document.querySelectorAll('input[name="med-detail"]').forEach(c => c.checked = false); toggleDiagnosisField();
         }
@@ -374,17 +429,25 @@
                     <div style="white-space:pre-wrap;">${t.message}</div>
                 </div>
             `).join('');
-            row.innerHTML = `<td><small>${data.event}</small><br><strong>${data.location}</strong><br><small style="color:#666">${data.sub_location}</small></td><td>${data.sender}</td><td>${data.category}<br><small style="color:#888">${data.detail}</small>${medicalInfoHtml}</td><td><div class="history-box">${historyHtml}</div></td><td><span class="status-badge ${statusClass}">${data.status}</span>${wheelchairWarning}</td>`;
+            const photosHtml = (data.photos && data.photos.length > 0) ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;">${data.photos.map(u => `<a href="${u}" target="_blank"><img src="${u}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #DDD;"></a>`).join('')}</div>` : '';
+            row.innerHTML = `<td><small>${data.event}</small><br><strong>${data.location}</strong><br><small style="color:#666">${data.sub_location}</small>${photosHtml}</td><td>${data.sender}</td><td>${data.category}<br><small style="color:#888">${data.detail}</small>${medicalInfoHtml}</td><td><div class="history-box">${historyHtml}</div></td><td><span class="status-badge ${statusClass}">${data.status}</span>${wheelchairWarning}</td>`;
             let card = document.getElementById(`mobile-card-${data.id}`);
             if (!card) { card = document.createElement('div'); card.id = `mobile-card-${data.id}`; card.className = 'report-card'; card.onclick = () => openModal(data.id); document.getElementById('mobile-card-list').prepend(card); }
-            card.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span style="font-size:0.75rem; color:#888;">${data.timeline[0].time} / ${data.location}</span><span class="status-badge ${statusClass}">${data.status}</span></div><div style="display:flex; justify-content:space-between; align-items:center;"><div style="font-weight:bold; color:var(--primary-color); font-size:0.9rem;">${data.category} - ${data.detail}</div>${wheelchairWarning}</div>${medicalInfoHtml}<div style="font-size:0.95rem; margin-top:4px;">${data.message}</div><div style="font-size:0.7rem; color:#999; margin-top:6px; text-align:right;">報告者: ${data.sender}</div>`;
+            const photoCount = (data.photos && data.photos.length > 0) ? `<span style="font-size:0.7rem; color:#007AFF; margin-left:6px;">📷 ${data.photos.length}枚</span>` : '';
+            card.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span style="font-size:0.75rem; color:#888;">${data.timeline[0].time} / ${data.location}</span><span class="status-badge ${statusClass}">${data.status}</span></div><div style="display:flex; justify-content:space-between; align-items:center;"><div style="font-weight:bold; color:var(--primary-color); font-size:0.9rem;">${data.category} - ${data.detail}${photoCount}</div>${wheelchairWarning}</div>${medicalInfoHtml}<div style="font-size:0.95rem; margin-top:4px;">${data.message}</div><div style="font-size:0.7rem; color:#999; margin-top:6px; text-align:right;">報告者: ${data.sender}</div>`;
             card.style.borderLeftColor = (data.status.includes('完了') || data.status === '完了') ? 'var(--status-done)' : (data.status === '未対応' ? 'var(--primary-color)' : 'var(--status-doing)');
         }
         function openModal(id) { currentId = id; switchMode(false); renderTimeline(); document.getElementById('modal').style.display = 'flex'; }
         function closeModal() { document.getElementById('modal').style.display = 'none'; }
         function renderTimeline() {
             const data = reports[currentId];
-            document.getElementById('modal-timeline').innerHTML = data.timeline.slice().reverse().map(t => `<div class="timeline-item"><div class="history-meta"><span>${t.time} - ${t.sender}</span> <span class="status-badge ${t.status==='対応中'?'status-doing':(t.status==='完了'?'status-done':'')}">${t.status}</span></div><div style="font-size:0.8rem; color:#666; margin-bottom:5px;">場所: ${t.location} / ${t.sub_location}</div><div style="white-space:pre-wrap; font-size:0.95rem;">${t.message}</div></div>`).join('');
+            const photosHtml = (data.photos && data.photos.length > 0)
+                ? `<div style="margin-top:16px; padding-top:16px; border-top:1px solid #EEE;">
+                    <div style="font-size:0.75rem; color:#666; font-weight:bold; margin-bottom:8px;">📷 添付写真</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px;">${data.photos.map(u => `<a href="${u}" target="_blank"><img src="${u}" style="width:80px;height:80px;object-fit:cover;border-radius:10px;border:1px solid #DDD;"></a>`).join('')}</div>
+                   </div>`
+                : '';
+            document.getElementById('modal-timeline').innerHTML = data.timeline.slice().reverse().map(t => `<div class="timeline-item"><div class="history-meta"><span>${t.time} - ${t.sender}</span> <span class="status-badge ${t.status==='対応中'?'status-doing':(t.status==='完了'?'status-done':'')}">${t.status}</span></div><div style="font-size:0.8rem; color:#666; margin-bottom:5px;">場所: ${t.location} / ${t.sub_location}</div><div style="white-space:pre-wrap; font-size:0.95rem;">${t.message}</div></div>`).join('') + photosHtml;
         }
         function downloadExcel() {
             const selectedDate = dateInput.value;

@@ -86,6 +86,17 @@
             </div>
 
             <div style="margin-bottom:15px;"><label>内容・メッセージ</label><textarea id="message" rows="3" placeholder="詳細な状況を入力"></textarea></div>
+
+            <div style="margin-bottom:15px;">
+                <label>写真（複数選択可）</label>
+                <label for="photo-input" id="photo-label" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:14px; border:2px dashed #DDD; border-radius:12px; cursor:pointer; color:#666; font-size:0.95rem; background:#FAFAFA;">
+                    📷 写真を選択
+                </label>
+                <input type="file" id="photo-input" accept="image/*" multiple style="display:none;" onchange="previewPhotos()">
+                <div id="photo-preview" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;"></div>
+                <div id="upload-status" style="font-size:0.8rem; color:#888; margin-top:4px;"></div>
+            </div>
+
             <button class="main-btn" onclick="sendReport()">報告を送信</button>
         </div>
     </div>
@@ -167,7 +178,7 @@
             socket.onclose = () => { document.getElementById('ws-status').style.color = '#FF3B30'; setTimeout(connect, 2000); };
         }
 
-        function sendReport() {
+        async function sendReport() {
             const loc = document.getElementById('location').value;
             const subLoc = document.getElementById('sub-location').value;
             const finalLoc = loc === 'その他' ? document.getElementById('location-other').value : loc;
@@ -196,9 +207,10 @@
                 };
             }
 
+            const photoUrls = await uploadPhotos();
             const msg = {
-                id: Date.now(), date: dateInput.value, event: eventSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat, detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData,
-                timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData }]
+                id: Date.now(), date: dateInput.value, event: eventSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat, detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls,
+                timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData, photos: photoUrls }]
             };
             socket.send(JSON.stringify(msg));
             
@@ -208,12 +220,58 @@
 
             // フォームリセット
             document.getElementById('message').value = '';
+            document.getElementById('photo-input').value = '';
+            document.getElementById('photo-preview').innerHTML = '';
+            document.getElementById('photo-label').textContent = '📷 写真を選択';
             document.querySelectorAll('input[name="med-detail"]').forEach(c => c.checked = false);
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         document.getElementById('sender').value = localStorage.getItem('sender_name') || '';
         document.getElementById('sender').onchange = (e) => localStorage.setItem('sender_name', e.target.value);
+
+        const CLOUDINARY_CLOUD_NAME = 'dujcnkle9';
+        const CLOUDINARY_UPLOAD_PRESET = 'yt6zyddz';
+
+        function previewPhotos() {
+            const files = document.getElementById('photo-input').files;
+            const preview = document.getElementById('photo-preview');
+            preview.innerHTML = '';
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.style.cssText = 'width:80px; height:80px; object-fit:cover; border-radius:8px; border:1px solid #DDD;';
+                    preview.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            });
+            const count = files.length;
+            document.getElementById('photo-label').textContent = count > 0 ? `📷 ${count}枚選択済み` : '📷 写真を選択';
+        }
+
+        async function uploadPhotos() {
+            const files = document.getElementById('photo-input').files;
+            if (files.length === 0) return [];
+            const status = document.getElementById('upload-status');
+            const urls = [];
+            for (let i = 0; i < files.length; i++) {
+                status.textContent = `アップロード中... (${i + 1}/${files.length})`;
+                const formData = new FormData();
+                formData.append('file', files[i]);
+                formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+                const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                urls.push(data.secure_url);
+            }
+            status.textContent = '';
+            return urls;
+        }
+
         connect();
     </script>
 </body>
