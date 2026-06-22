@@ -96,7 +96,7 @@
             <div id="location-other-group" style="display:none; margin-bottom:10px;"><input type="text" id="location-other" placeholder="場所の詳細を入力"></div>
             
             <div class="input-grid" style="grid-template-columns: 1fr;">
-                <div><label>カテゴリ</label><select id="category"><option value="なし">なし</option><option value="医事対応">医事対応</option><option value="ご意見・ご要望">ご意見・ご要望</option><option value="物損">物損</option><option value="感謝の声">感謝の声</option><option value="気づいたこと">気づいたこと</option><option value="その他">その他</option></select></div>
+                <div><label>カテゴリ</label><select id="category"><option value="なし">なし</option><option value="ご意見・ご要望">ご意見・ご要望</option><option value="医事対応">医事対応</option><option value="迷子・迷いびと">迷子・迷いびと</option><option value="落とし物">落とし物</option><option value="サポーター対応">サポーター対応</option><option value="施設トラブル">施設トラブル</option><option value="チケットトラブル">チケットトラブル</option><option value="感謝の声">感謝の声</option><option value="提案事項">提案事項</option><option value="その他">その他</option></select></div>
             </div>
 
             <div id="non-medical-detail-area" style="display:none; margin-top:10px;">
@@ -260,12 +260,16 @@
         eventSelect.onchange = updateLocationUI;
         document.getElementById('location-other').onchange = (e) => localStorage.setItem('location_other', e.target.value);
 
-        const details = { 
-            '医事対応': ['一時失神', '意識なし', 'めまい', '寒気・震え', '腹痛', '吐き気', '頭痛', '過呼吸', '外傷・出血', '動悸', 'その他'], 
-            'ご意見・ご要望': ['待機列', '接客対応', '設備', 'その他'], 
-            '物損': ['建物', '備品', '車両', 'その他'], 
-            '感謝の声': ['運営', '接客', '演出', 'その他'], 
-            '気づいたこと': ['清掃', '案内表示', '不具合', 'その他'],
+        const details = {
+            '医事対応': ['一時失神', '意識なし', 'めまい', '寒気・震え', '腹痛', '吐き気', '頭痛', '過呼吸', '外傷・出血', '動悸', 'その他'],
+            'ご意見・ご要望': ['待機列', '接客対応', '設備', 'その他'],
+            '迷子・迷いびと': ['子供', '高齢者', 'その他'],
+            '落とし物': ['財布・お金', 'スマートフォン', '衣類・バッグ', 'チケット', 'その他'],
+            'サポーター対応': ['トラブル', '案内', 'その他'],
+            '施設トラブル': ['設備故障', '清掃', '安全', 'その他'],
+            'チケットトラブル': ['入場不可', '重複', '紛失', 'その他'],
+            '感謝の声': ['運営', '接客', '演出', 'その他'],
+            '提案事項': ['清掃', '案内表示', '不具合', 'その他'],
             'その他': ['その他']
         };
         const standardStatuses = ['未対応', '対応中', '完了'];
