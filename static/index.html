@@ -81,7 +81,8 @@
         <div class="card">
             <div class="input-grid">
                 <div><label>日づけ</label><input type="date" id="event-date"></div>
-                <div><label>現場名</label><select id="event-name"><option value="フクダ電子アリーナ">フクダ電子アリーナ</option><option value="その他">その他</option></select></div>
+                <div><label>現場名</label><select id="event-name"><option value="ジェフ(トップ)">ジェフ(トップ)</option><option value="ジェフ(レディース)">ジェフ(レディース)</option><option value="その他">その他</option></select></div>
+                <div><label>施設名</label><select id="venue-name"><option value="フクダ電子アリーナ">フクダ電子アリーナ</option><option value="その他">その他</option></select></div>
                 <div><label>報告者</label><input type="text" id="sender" placeholder="名前"></div>
                 <div><label>発生場所</label><div id="location-container"></div></div>
                 <div><label>詳細場所</label><div id="sub-location-container"></div></div>
@@ -233,6 +234,7 @@
 
         const dateInput = document.getElementById('event-date');
         const eventSelect = document.getElementById('event-name');
+        const venueSelect = document.getElementById('venue-name');
         const locationContainer = document.getElementById('location-container');
         const subLocationContainer = document.getElementById('sub-location-container');
 
@@ -251,7 +253,8 @@
             });
         }
         dateInput.onchange = refreshList;
-        eventSelect.onchange = () => { updateLocationUI(); refreshList(); };
+        eventSelect.onchange = refreshList;
+        venueSelect.onchange = () => { updateLocationUI(); localStorage.setItem('venue_name', venueSelect.value); };
 
         const locationPresets = { 'フクダ電子アリーナ': ['なし', '北西ゲート', '東2ゲート', '南西ゲート', 'メインスタンド', 'バックスタンド', '公園', '北サイドスタンド', '南サイドスタンド', '場外案内', '場外駐車場', '1・2駐車場', '第3駐車場', 'フィールド', '館内', 'その他'] };
         function updateSubLocationUI() {
@@ -261,9 +264,8 @@
             document.getElementById('sub-location').onchange = (e) => localStorage.setItem('sub_location_name', e.target.value);
         }
         function updateLocationUI() {
-            const eventName = eventSelect.value;
-            localStorage.setItem('event_name', eventName);
-            if (locationPresets[eventName]) { locationContainer.innerHTML = `<select id="location">${locationPresets[eventName].map(l => `<option value="${l}">${l}</option>`).join('')}</select>`; }
+            const venueName = venueSelect.value;
+            if (locationPresets[venueName]) { locationContainer.innerHTML = `<select id="location">${locationPresets[venueName].map(l => `<option value="${l}">${l}</option>`).join('')}</select>`; }
             else { locationContainer.innerHTML = `<input type="text" id="location" placeholder="場所入力"></input>`; }
             const locEl = document.getElementById('location');
             const saveLoc = () => {
@@ -273,7 +275,6 @@
             };
             locEl.onchange = saveLoc; locEl.oninput = saveLoc; updateSubLocationUI();
         }
-        eventSelect.onchange = updateLocationUI;
         document.getElementById('location-other').onchange = (e) => localStorage.setItem('location_other', e.target.value);
 
         const details = {
@@ -426,7 +427,7 @@
             const responderName = document.getElementById('responder-name').value;
             const finalResponder = responderVal === 'クラブ' && responderName ? `クラブ（${responderName}）` : responderVal;
             const msg = {
-                id: Date.now(), date: dateInput.value, event: eventSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat || 'その他', detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder,
+                id: Date.now(), date: dateInput.value, event: eventSelect.value, venue: venueSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat || 'その他', detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder,
                 timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData, responder: finalResponder }]
             };
             socket.send(JSON.stringify(msg));
@@ -462,7 +463,7 @@
             `).join('');
             const photosHtml = (data.photos && data.photos.length > 0) ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;">${data.photos.map(u => `<a href="${u}" target="_blank"><img src="${u}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #DDD;"></a>`).join('')}</div>` : '';
             const responderHtml = (data.responder && data.responder !== 'なし') ? `<div style="font-size:0.75rem; color:#555; margin-top:3px;">対応: ${data.responder}</div>` : '';
-            row.innerHTML = `<td><small>${data.event}</small><br><strong>${data.location}</strong><br><small style="color:#666">${data.sub_location}</small>${photosHtml}</td><td>${data.sender}</td><td>${data.category}<br><small style="color:#888">${data.detail}</small>${medicalInfoHtml}${responderHtml}</td><td><div class="history-box">${historyHtml}</div></td><td><span class="status-badge ${statusClass}">${data.status}</span>${wheelchairWarning}</td>`;
+            row.innerHTML = `<td><small>${data.event}${data.venue ? ' / ' + data.venue : ''}</small><br><strong>${data.location}</strong><br><small style="color:#666">${data.sub_location}</small>${photosHtml}</td><td>${data.sender}</td><td>${data.category}<br><small style="color:#888">${data.detail}</small>${medicalInfoHtml}${responderHtml}</td><td><div class="history-box">${historyHtml}</div></td><td><span class="status-badge ${statusClass}">${data.status}</span>${wheelchairWarning}</td>`;
             let card = document.getElementById(`mobile-card-${data.id}`);
             if (!card) { card = document.createElement('div'); card.id = `mobile-card-${data.id}`; card.className = 'report-card'; card.onclick = () => openModal(data.id); document.getElementById('mobile-card-list').prepend(card); }
             const photoCount = (data.photos && data.photos.length > 0) ? `<span style="font-size:0.7rem; color:#007AFF; margin-left:6px;">📷 ${data.photos.length}枚</span>` : '';
@@ -595,7 +596,9 @@
 
         document.getElementById('sender').value = localStorage.getItem('sender_name') || '';
         document.getElementById('sender').onchange = (e) => localStorage.setItem('sender_name', e.target.value);
-        eventSelect.value = localStorage.getItem('event_name') || 'フクダ電子アリーナ';
+        eventSelect.value = localStorage.getItem('event_name') || 'ジェフ(トップ)';
+        eventSelect.onchange = (e) => { localStorage.setItem('event_name', e.target.value); refreshList(); };
+        venueSelect.value = localStorage.getItem('venue_name') || 'フクダ電子アリーナ';
         updateLocationUI();
 
         const savedLoc = localStorage.getItem('location_name');

@@ -43,7 +43,8 @@
         <div class="card">
             <div class="input-grid">
                 <div><label>日づけ</label><input type="date" id="event-date"></div>
-                <div><label>現場名</label><select id="event-name"><option value="フクダ電子アリーナ">フクダ電子アリーナ</option><option value="その他">その他</option></select></div>
+                <div><label>現場名</label><select id="event-name"><option value="ジェフ(トップ)">ジェフ(トップ)</option><option value="ジェフ(レディース)">ジェフ(レディース)</option><option value="その他">その他</option></select></div>
+                <div><label>施設名</label><select id="venue-name"><option value="フクダ電子アリーナ">フクダ電子アリーナ</option><option value="その他">その他</option></select></div>
             </div>
             <div class="input-grid">
                 <div><label>報告者</label><input type="text" id="sender" placeholder="名前"></div>
@@ -120,6 +121,7 @@
     <script>
         const dateInput = document.getElementById('event-date');
         const eventSelect = document.getElementById('event-name');
+        const venueSelect = document.getElementById('venue-name');
         const locationContainer = document.getElementById('location-container');
         const subLocationContainer = document.getElementById('sub-location-container');
 
@@ -133,8 +135,8 @@
             subLocationContainer.innerHTML = `<select id="sub-location"><option value="なし">なし</option></select>`;
         }
         function updateLocationUI() {
-            const eventName = eventSelect.value;
-            if (locationPresets[eventName]) { locationContainer.innerHTML = `<select id="location">${locationPresets[eventName].map(l => `<option value="${l}">${l}</option>`).join('')}</select>`; }
+            const venueName = venueSelect.value;
+            if (locationPresets[venueName]) { locationContainer.innerHTML = `<select id="location">${locationPresets[venueName].map(l => `<option value="${l}">${l}</option>`).join('')}</select>`; }
             else { locationContainer.innerHTML = `<input type="text" id="location" placeholder="場所入力"></input>`; }
             const locEl = document.getElementById('location');
             locEl.onchange = () => {
@@ -143,7 +145,7 @@
             };
             updateSubLocationUI();
         }
-        eventSelect.onchange = updateLocationUI;
+        venueSelect.onchange = updateLocationUI;
         updateLocationUI();
 
         const details = {
@@ -236,7 +238,7 @@
             const responderName = document.getElementById('responder-name').value;
             const finalResponder = responderVal === 'クラブ' && responderName ? `クラブ（${responderName}）` : responderVal;
             const msg = {
-                id: Date.now(), date: dateInput.value, event: eventSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat, detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder,
+                id: Date.now(), date: dateInput.value, event: eventSelect.value, venue: venueSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat, detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder,
                 timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData, photos: photoUrls, responder: finalResponder }]
             };
             socket.send(JSON.stringify(msg));
