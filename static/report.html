@@ -49,6 +49,22 @@
                 <div><label>報告者</label><input type="text" id="sender" placeholder="名前"></div>
                 <div><label>状況</label><select id="status"><option value="未対応">未対応</option><option value="対応中">対応中</option><option value="完了">完了</option></select></div>
             </div>
+            <div class="input-grid">
+                <div>
+                    <label>対応者</label>
+                    <select id="responder" onchange="toggleResponderName()">
+                        <option value="なし">なし</option>
+                        <option value="クラブ">クラブ</option>
+                        <option value="施設スタッフ">施設スタッフ</option>
+                        <option value="お客さん">お客さん</option>
+                        <option value="その他">その他</option>
+                    </select>
+                </div>
+                <div id="responder-name-group" style="display:none;">
+                    <label>クラブ名（任意）</label>
+                    <input type="text" id="responder-name" placeholder="空欄でも可">
+                </div>
+            </div>
             <div class="input-grid" style="grid-template-columns: 1fr 1fr;">
                 <div><label>発生場所</label><div id="location-container"></div></div>
                 <div><label>詳細場所</label><div id="sub-location-container"></div></div>
@@ -159,6 +175,11 @@
             checkCategoryOther();
         };
 
+        function toggleResponderName() {
+            const val = document.getElementById('responder').value;
+            document.getElementById('responder-name-group').style.display = val === 'クラブ' ? 'block' : 'none';
+        }
+
         function toggleWheelchairFields() {
             const used = document.getElementById('med-wheelchair').value === 'あり';
             document.getElementById('med-wheelchair-source-group').style.display = used ? 'block' : 'none';
@@ -211,9 +232,12 @@
             }
 
             const photoUrls = await uploadPhotos();
+            const responderVal = document.getElementById('responder').value;
+            const responderName = document.getElementById('responder-name').value;
+            const finalResponder = responderVal === 'クラブ' && responderName ? `クラブ（${responderName}）` : responderVal;
             const msg = {
-                id: Date.now(), date: dateInput.value, event: eventSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat, detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls,
-                timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData, photos: photoUrls }]
+                id: Date.now(), date: dateInput.value, event: eventSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat, detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder,
+                timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData, photos: photoUrls, responder: finalResponder }]
             };
             socket.send(JSON.stringify(msg));
             
@@ -223,6 +247,9 @@
 
             // フォームリセット
             document.getElementById('message').value = '';
+            document.getElementById('responder').value = 'なし';
+            document.getElementById('responder-name').value = '';
+            document.getElementById('responder-name-group').style.display = 'none';
             document.getElementById('photo-input').value = '';
             document.getElementById('photo-preview').innerHTML = '';
             document.getElementById('photo-label').textContent = '📷 写真を選択';
