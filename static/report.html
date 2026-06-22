@@ -150,7 +150,6 @@
             } else {
                 document.getElementById('medical-fields').style.display = 'none';
                 document.getElementById('non-medical-detail-area').style.display = 'block';
-                document.getElementById('detail-group').style.visibility = 'visible';
                 document.getElementById('detail-container').innerHTML = `<select id="detail" onchange="checkCategoryOther()"><option value="なし">なし</option>${d.map(v => `<option value="${v}">${v}</option>`).join('')}</select>`;
             }
             checkCategoryOther();
