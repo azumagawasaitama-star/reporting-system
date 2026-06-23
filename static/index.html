@@ -137,6 +137,7 @@
                     <div><label>来場方法</label><select id="med-transport" onchange="toggleTransportFields()"><option value="なし">なし</option><option value="公共交通機関">公共交通機関</option><option value="車">車</option><option value="その他">その他</option></select></div>
                     <div id="med-parking-group" style="display:none;"><label>駐車場所</label><select id="med-parking"><option value="なし">なし</option><option value="第３駐車場">第３駐車場</option><option value="1・2駐車場">1・2駐車場</option><option value="グローボ">グローボ</option><option value="ジェフィA">ジェフィA</option><option value="その他">その他</option></select></div>
                 </div>
+                <div id="med-transport-other-group" style="display:none; margin-bottom:10px;"><input type="text" id="med-transport-other" placeholder="来場方法の詳細を入力"></div>
                 <div class="input-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom:10px;">
                     <div><label>車椅子使用</label><select id="med-wheelchair" onchange="toggleWheelchairFields()"><option value="なし">なし</option><option value="あり">あり</option></select></div>
                     <div id="med-wheelchair-source-group" style="display:none;"><label>貸出場所</label><select id="med-wheelchair-source"><option value="なし">なし</option><option value="医務室">医務室</option><option value="控室8">控室8</option><option value="多目的室">多目的室</option><option value="エレベーターホール">エレベーターホール</option></select></div>
@@ -328,7 +329,9 @@
         }
 
         function toggleTransportFields() {
-            document.getElementById('med-parking-group').style.display = document.getElementById('med-transport').value === '車' ? 'block' : 'none';
+            const val = document.getElementById('med-transport').value;
+            document.getElementById('med-parking-group').style.display = val === '車' ? 'block' : 'none';
+            document.getElementById('med-transport-other-group').style.display = val === 'その他' ? 'block' : 'none';
         }
         function toggleWheelchairFields() {
             const used = document.getElementById('med-wheelchair').value === 'あり';
@@ -421,7 +424,7 @@
                     gender: document.getElementById('med-gender').value,
                     age: document.getElementById('med-age').value,
                     companion: document.getElementById('med-companion').value,
-                    transport: document.getElementById('med-transport').value,
+                    transport: document.getElementById('med-transport').value === 'その他' ? (document.getElementById('med-transport-other').value || 'その他') : document.getElementById('med-transport').value,
                     parking: document.getElementById('med-parking').value,
                     wheelchair: document.getElementById('med-wheelchair').value,
                     wheelchair_source: document.getElementById('med-wheelchair-source').value,
@@ -448,6 +451,8 @@
             document.getElementById('photo-preview').innerHTML = '';
             document.getElementById('photo-label').textContent = '📷 写真を選択';
             document.getElementById('med-transport').value = 'なし';
+            document.getElementById('med-transport-other').value = '';
+            document.getElementById('med-transport-other-group').style.display = 'none';
             document.getElementById('med-parking').value = 'なし';
             document.getElementById('med-parking-group').style.display = 'none';
             document.getElementById('med-diagnosis-check').checked = false; document.getElementById('med-diagnosis-other').value = '';
