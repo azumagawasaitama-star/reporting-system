@@ -133,6 +133,10 @@
                     <div><label>年代</label><select id="med-age"><option value="なし">なし</option><option value="不明">不明</option><option value="10代未満">10代未満</option><option value="10代">10代</option><option value="20代">20代</option><option value="30代">30代</option><option value="40代">40代</option><option value="50代">50代</option><option value="60代">60代</option><option value="70代以上">70代以上</option></select></div>
                     <div><label>同行者</label><select id="med-companion"><option value="なし">なし</option><option value="ひとり">ひとり</option><option value="家族">家族</option><option value="知人">知人</option></select></div>
                 </div>
+                <div class="input-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:10px;">
+                    <div><label>来場方法</label><select id="med-transport" onchange="toggleTransportFields()"><option value="なし">なし</option><option value="公共交通機関">公共交通機関</option><option value="車">車</option><option value="その他">その他</option></select></div>
+                    <div id="med-parking-group" style="display:none;"><label>駐車場所</label><select id="med-parking"><option value="なし">なし</option><option value="第３駐車場">第３駐車場</option><option value="1・2駐車場">1・2駐車場</option><option value="グローボ">グローボ</option><option value="ジェフィA">ジェフィA</option><option value="その他">その他</option></select></div>
+                </div>
                 <div class="input-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom:10px;">
                     <div><label>車椅子使用</label><select id="med-wheelchair" onchange="toggleWheelchairFields()"><option value="なし">なし</option><option value="あり">あり</option></select></div>
                     <div id="med-wheelchair-source-group" style="display:none;"><label>貸出場所</label><select id="med-wheelchair-source"><option value="なし">なし</option><option value="医務室">医務室</option><option value="控室8">控室8</option><option value="多目的室">多目的室</option><option value="エレベーターホール">エレベーターホール</option></select></div>
@@ -323,6 +327,9 @@
             document.getElementById('responder-name-group').style.display = val === 'クラブ' ? 'block' : 'none';
         }
 
+        function toggleTransportFields() {
+            document.getElementById('med-parking-group').style.display = document.getElementById('med-transport').value === '車' ? 'block' : 'none';
+        }
         function toggleWheelchairFields() {
             const used = document.getElementById('med-wheelchair').value === 'あり';
             document.getElementById('med-wheelchair-source-group').style.display = used ? 'block' : 'none';
@@ -414,6 +421,8 @@
                     gender: document.getElementById('med-gender').value,
                     age: document.getElementById('med-age').value,
                     companion: document.getElementById('med-companion').value,
+                    transport: document.getElementById('med-transport').value,
+                    parking: document.getElementById('med-parking').value,
                     wheelchair: document.getElementById('med-wheelchair').value,
                     wheelchair_source: document.getElementById('med-wheelchair-source').value,
                     wheelchair_return: document.getElementById('med-wheelchair-return').value,
@@ -438,6 +447,9 @@
             document.getElementById('photo-input').value = '';
             document.getElementById('photo-preview').innerHTML = '';
             document.getElementById('photo-label').textContent = '📷 写真を選択';
+            document.getElementById('med-transport').value = 'なし';
+            document.getElementById('med-parking').value = 'なし';
+            document.getElementById('med-parking-group').style.display = 'none';
             document.getElementById('med-diagnosis-check').checked = false; document.getElementById('med-diagnosis-other').value = '';
             document.querySelectorAll('input[name="med-detail"]').forEach(c => c.checked = false); toggleDiagnosisField();
         }
@@ -447,7 +459,8 @@
             const med = data.medical;
             let medicalInfoHtml = ""; let wheelchairWarning = "";
             if (isMedical && med) {
-                medicalInfoHtml = `<div style="font-size:0.75rem; color:#E67E22; margin-top:4px;">[${med.gender}/${med.age}/${med.companion}]${med.diagnosis ? `<br>診断: ${med.diagnosis}` : ""}</div>`;
+                const transportInfo = (med.transport && med.transport !== 'なし') ? ` 来場:${med.transport}${med.parking && med.parking !== 'なし' ? `(${med.parking})` : ''}` : '';
+                medicalInfoHtml = `<div style="font-size:0.75rem; color:#E67E22; margin-top:4px;">[${med.gender}/${med.age}/${med.companion}]${transportInfo}${med.diagnosis ? `<br>診断: ${med.diagnosis}` : ""}</div>`;
                 if (med.wheelchair === 'あり' && med.wheelchair_return === '未返却') wheelchairWarning = `<span style="font-size:0.7rem; background:#FF3B30; color:white; padding:1px 4px; border-radius:4px; margin-left:5px;">車椅子未返却(${med.wheelchair_source})</span>`;
             }
             const statusClass = (data.status.includes('完了') || data.status === '完了') ? 'status-done' : (data.status === '未対応' ? '' : 'status-doing');
