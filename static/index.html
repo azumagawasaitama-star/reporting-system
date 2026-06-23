@@ -6,6 +6,9 @@
     <title>現場報告システム</title>
     <!-- SheetJS (xlsx) 読み込み -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- Leaflet (地図) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         :root {
             --primary-color: #007AFF;
@@ -71,12 +74,19 @@
     <div class="container">
         <header>
             <h1>現場報告システム <span id="ws-status" style="font-size:0.6rem; color:#888;">● 接続中</span></h1>
-            <div class="view-controls">
-                <button class="view-btn active" id="btn-auto" onclick="setViewMode('auto')">自動</button>
-                <button class="view-btn" id="btn-pc" onclick="setViewMode('pc')">PC</button>
-                <button class="view-btn" id="btn-mobile" onclick="setViewMode('mobile')">スマホ</button>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button onclick="toggleMap()" id="map-btn" style="padding:4px 12px; border:none; border-radius:6px; background:#EEE; font-size:0.75rem; font-weight:bold; cursor:pointer;">🗺 地図</button>
+                <div class="view-controls">
+                    <button class="view-btn active" id="btn-auto" onclick="setViewMode('auto')">自動</button>
+                    <button class="view-btn" id="btn-pc" onclick="setViewMode('pc')">PC</button>
+                    <button class="view-btn" id="btn-mobile" onclick="setViewMode('mobile')">スマホ</button>
+                </div>
             </div>
         </header>
+
+        <div id="map-panel" style="display:none; height:350px; border-radius:12px; overflow:hidden; margin-bottom:15px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+            <div id="map-container" style="width:100%; height:100%;"></div>
+        </div>
 
         <div class="card">
             <div class="input-grid">
@@ -166,6 +176,15 @@
                 <div id="upload-status" style="font-size:0.75rem; color:#888; margin-top:4px;"></div>
             </div>
 
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding:10px 14px; background:#F8F8F8; border-radius:10px;">
+                <span style="font-size:0.85rem; color:#666; font-weight:bold;">📍 GPS位置情報を添付</span>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <span id="gps-label" style="font-size:0.8rem; color:#34C759; font-weight:bold;">オン</span>
+                    <div id="gps-switch" onclick="toggleGPS()" style="width:44px; height:24px; background:#34C759; border-radius:12px; position:relative; cursor:pointer; transition:background 0.2s;">
+                        <div id="gps-knob" style="position:absolute; top:2px; left:22px; width:20px; height:20px; background:white; border-radius:50%; transition:left 0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>
+                    </div>
+                </label>
+            </div>
             <button class="main-btn" onclick="sendReport()">報告を送信</button>
         </div>
 
@@ -251,6 +270,7 @@
             Object.values(reports).sort((a,b) => a.id - b.id).forEach(data => {
                 if (data.date === selectedDate && data.event === selectedEvent) render(data);
             });
+            refreshMarkers();
         }
         dateInput.onchange = refreshList;
         eventSelect.onchange = refreshList;
@@ -423,11 +443,12 @@
             }
 
             const photoUrls = await uploadPhotos();
+            const gpsData = await getGPS();
             const responderVal = document.getElementById('responder').value;
             const responderName = document.getElementById('responder-name').value;
             const finalResponder = responderVal === 'クラブ' && responderName ? `クラブ（${responderName}）` : responderVal;
             const msg = {
-                id: Date.now(), date: dateInput.value, event: eventSelect.value, venue: venueSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat || 'その他', detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder,
+                id: Date.now(), date: dateInput.value, event: eventSelect.value, venue: venueSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat || 'その他', detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, gps: gpsData, responder: finalResponder,
                 timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData, responder: finalResponder }]
             };
             socket.send(JSON.stringify(msg));
@@ -469,6 +490,7 @@
             const photoCount = (data.photos && data.photos.length > 0) ? `<span style="font-size:0.7rem; color:#007AFF; margin-left:6px;">📷 ${data.photos.length}枚</span>` : '';
             card.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span style="font-size:0.75rem; color:#888;">${data.timeline[0].time} / ${data.location}</span><span class="status-badge ${statusClass}">${data.status}</span></div><div style="display:flex; justify-content:space-between; align-items:center;"><div style="font-weight:bold; color:var(--primary-color); font-size:0.9rem;">${data.category} - ${data.detail}${photoCount}</div>${wheelchairWarning}</div>${medicalInfoHtml}<div style="font-size:0.95rem; margin-top:4px;">${data.message}</div><div style="font-size:0.7rem; color:#999; margin-top:6px; text-align:right;">報告者: ${data.sender}</div>`;
             card.style.borderLeftColor = (data.status.includes('完了') || data.status === '完了') ? 'var(--status-done)' : (data.status === '未対応' ? 'var(--primary-color)' : 'var(--status-doing)');
+            if (data.gps) addOrUpdateMapMarker(data);
         }
         function openModal(id) { currentId = id; switchMode(false); renderTimeline(); document.getElementById('modal').style.display = 'flex'; }
         function closeModal() { document.getElementById('modal').style.display = 'none'; }
@@ -592,6 +614,75 @@
                 timeline: [...data.timeline, { time: time, sender: newSender, message: msg || '(追記なし)', status: status, location: loc, sub_location: data.sub_location, medical: updatedMedical }]
             };
             socket.send(JSON.stringify(updated)); switchMode(false);
+        }
+
+        let map = null;
+        const mapMarkers = {};
+        let gpsEnabled = true;
+
+        function toggleGPS() {
+            gpsEnabled = !gpsEnabled;
+            document.getElementById('gps-switch').style.background = gpsEnabled ? '#34C759' : '#CCC';
+            document.getElementById('gps-knob').style.left = gpsEnabled ? '22px' : '2px';
+            document.getElementById('gps-label').textContent = gpsEnabled ? 'オン' : 'オフ';
+            document.getElementById('gps-label').style.color = gpsEnabled ? '#34C759' : '#999';
+        }
+        async function getGPS() {
+            if (!gpsEnabled || !navigator.geolocation) return null;
+            return new Promise(resolve => {
+                navigator.geolocation.getCurrentPosition(
+                    pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: Math.round(pos.coords.accuracy) }),
+                    () => resolve(null),
+                    { timeout: 6000, maximumAge: 30000 }
+                );
+            });
+        }
+        function initMap() {
+            if (map) return;
+            map = L.map('map-container').setView([35.6028, 140.1074], 16);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors', maxZoom: 19
+            }).addTo(map);
+        }
+        function toggleMap() {
+            const panel = document.getElementById('map-panel');
+            const btn = document.getElementById('map-btn');
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                btn.style.background = '#007AFF';
+                btn.style.color = 'white';
+                initMap();
+                setTimeout(() => { map.invalidateSize(); refreshMarkers(); }, 100);
+            } else {
+                panel.style.display = 'none';
+                btn.style.background = '#EEE';
+                btn.style.color = '';
+            }
+        }
+        function refreshMarkers() {
+            if (!map) return;
+            Object.values(mapMarkers).forEach(m => map.removeLayer(m));
+            Object.keys(mapMarkers).forEach(k => delete mapMarkers[k]);
+            const selectedDate = dateInput.value;
+            const selectedEvent = eventSelect.value;
+            Object.values(reports).forEach(data => {
+                if (data.date === selectedDate && data.event === selectedEvent && data.gps) {
+                    addOrUpdateMapMarker(data);
+                }
+            });
+        }
+        function addOrUpdateMapMarker(data) {
+            if (!map || !data.gps) return;
+            const { lat, lng } = data.gps;
+            const color = data.category === '医事対応' ? '#FF9500' : '#007AFF';
+            const icon = L.divIcon({
+                html: `<div style="width:32px;height:32px;background:${color};border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:bold;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${data.timeline.length}</div>`,
+                className: '', iconSize: [32, 32], iconAnchor: [16, 16]
+            });
+            if (mapMarkers[data.id]) map.removeLayer(mapMarkers[data.id]);
+            const marker = L.marker([lat, lng], { icon }).addTo(map);
+            marker.bindPopup(`<b>${data.category}</b><br>${data.location}<br>報告者: ${data.sender}<br>${data.timeline[0].time}<br><small>精度: ±${data.gps.accuracy}m</small>`);
+            mapMarkers[data.id] = marker;
         }
 
         document.getElementById('sender').value = localStorage.getItem('sender_name') || '';

@@ -114,6 +114,15 @@
                 <div id="upload-status" style="font-size:0.8rem; color:#888; margin-top:4px;"></div>
             </div>
 
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding:10px 14px; background:#F8F8F8; border-radius:10px;">
+                <span style="font-size:0.85rem; color:#666; font-weight:bold;">📍 GPS位置情報を添付</span>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <span id="gps-label" style="font-size:0.8rem; color:#34C759; font-weight:bold;">オン</span>
+                    <div id="gps-switch" onclick="toggleGPS()" style="width:44px; height:24px; background:#34C759; border-radius:12px; position:relative; cursor:pointer; transition:background 0.2s;">
+                        <div id="gps-knob" style="position:absolute; top:2px; left:22px; width:20px; height:20px; background:white; border-radius:50%; transition:left 0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>
+                    </div>
+                </label>
+            </div>
             <button class="main-btn" onclick="sendReport()">報告を送信</button>
         </div>
     </div>
@@ -234,11 +243,12 @@
             }
 
             const photoUrls = await uploadPhotos();
+            const gpsData = await getGPS();
             const responderVal = document.getElementById('responder').value;
             const responderName = document.getElementById('responder-name').value;
             const finalResponder = responderVal === 'クラブ' && responderName ? `クラブ（${responderName}）` : responderVal;
             const msg = {
-                id: Date.now(), date: dateInput.value, event: eventSelect.value, venue: venueSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat, detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder,
+                id: Date.now(), date: dateInput.value, event: eventSelect.value, venue: venueSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat, detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder, gps: gpsData,
                 timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData, photos: photoUrls, responder: finalResponder }]
             };
             socket.send(JSON.stringify(msg));
@@ -302,6 +312,25 @@
             }
             status.textContent = '';
             return urls;
+        }
+
+        let gpsEnabled = true;
+        function toggleGPS() {
+            gpsEnabled = !gpsEnabled;
+            document.getElementById('gps-switch').style.background = gpsEnabled ? '#34C759' : '#CCC';
+            document.getElementById('gps-knob').style.left = gpsEnabled ? '22px' : '2px';
+            document.getElementById('gps-label').textContent = gpsEnabled ? 'オン' : 'オフ';
+            document.getElementById('gps-label').style.color = gpsEnabled ? '#34C759' : '#999';
+        }
+        async function getGPS() {
+            if (!gpsEnabled || !navigator.geolocation) return null;
+            return new Promise(resolve => {
+                navigator.geolocation.getCurrentPosition(
+                    pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: Math.round(pos.coords.accuracy) }),
+                    () => resolve(null),
+                    { timeout: 6000, maximumAge: 30000 }
+                );
+            });
         }
 
         connect();
