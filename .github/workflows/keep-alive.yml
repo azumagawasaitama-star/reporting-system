@@ -1,0 +1,13 @@
+name: Keep Supabase Alive
+
+on:
+  schedule:
+    - cron: '0 0 * * 1,4'  # 毎週月曜・木曜 午前9時(JST)に実行
+  workflow_dispatch:        # 手動実行も可能
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping app
+        run: curl -s https://reporting-system-1pjh.onrender.com/ > /dev/null
