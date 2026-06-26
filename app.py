@@ -18,7 +18,14 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 if not DATABASE_URL:
     DATABASE_URL = "sqlite:///./reports.db"
 
-engine = create_engine(DATABASE_URL)
+if DATABASE_URL and DATABASE_URL.startswith("postgresql"):
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=300,
+    )
+else:
+    engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -64,11 +71,15 @@ class ConnectionManager:
 
     async def broadcast(self, message: str):
         print(f"Broadcasting: {message}")
+        dead = []
         for connection in self.active_connections:
             try:
                 await connection.send_text(message)
             except Exception as e:
                 print(f"Error sending to client: {e}")
+                dead.append(connection)
+        for connection in dead:
+            self.active_connections.remove(connection)
 
 manager = ConnectionManager()
 
