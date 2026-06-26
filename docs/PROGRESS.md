@@ -53,8 +53,13 @@
 ### Render（ホスティング）
 - **URL**: https://reporting-system-1pjh.onrender.com
 - **プラン**: Free
-- **DB**: PostgreSQL（Render内蔵）
 - **デプロイ**: GitHub main ブランチへのpushで自動デプロイ。
+
+### Supabase（データベース）
+- **ダッシュボード**: https://supabase.com/dashboard/project/gfpplntqyroeeunfwkob
+- **プラン**: Free（500MB、期限なし）
+- **ログイン**: GitHubアカウント
+- **注意**: 7日間アクセスなしで一時停止→GitHub Actionsで毎週月・木に自動pingして防止済み。
 
 ### Cloudinary（写真ストレージ）
 - **用途**: 報告に添付する写真のアップロード・ホスティング
