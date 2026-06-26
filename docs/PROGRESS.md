@@ -5,6 +5,30 @@
 - 管理画面（入力＋閲覧）と報告専用画面（入力のみ）の2系統実装済み。
 - 日づけ＋現場名（ジェフ(トップ)/ジェフ(レディース)）単位でテーブルを表示。
 
+## システム構成
+
+```
+スタッフのスマホ / PC（ブラウザ）
+        |
+        | WebSocket / HTTP
+        |
+   [ Render ]  ← GitHubにpushで自動デプロイ
+   アプリ本体（FastAPI）
+   https://reporting-system-1pjh.onrender.com
+        |
+        | +-----------------------+
+        | |                       |
+   [ Supabase ]            [ Cloudinary ]
+   データ保存                写真保存
+   （報告のテキスト）        （画像ファイル本体）
+        |                       |
+        | GitHub Actionsが        | ブラウザから直接
+        | 週2回自動ping           | アップロード・表示
+```
+
+- **GitHub**: コード管理。mainへのpushでRenderが自動デプロイ。
+- **GitHub Actions**: 週2回（月・木）アプリにアクセスしてSupabaseの一時停止を防止。
+
 ## 完了したタスク
 
 ### データ管理
