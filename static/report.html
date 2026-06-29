@@ -80,7 +80,8 @@
             <div id="non-medical-detail-area" style="display:none; margin-bottom:12px;">
                 <label id="detail-label">詳細種別</label>
                 <div id="detail-container"></div>
-                <div id="protection-group" style="display:none; margin-top:8px;"><label>保護・捜査</label><select id="protection-status"><option value="なし">なし</option><option value="保護">保護</option><option value="捜査">捜査</option><option value="その他">その他</option></select></div>
+                <div id="protection-group" style="display:none; margin-top:8px;"><label>保護・捜査</label><select id="protection-status" onchange="document.getElementById('protection-other-group').style.display = this.value === 'その他' ? 'block' : 'none'"><option value="なし">なし</option><option value="保護">保護</option><option value="捜査">捜査</option><option value="その他">その他</option></select></div>
+                <div id="protection-other-group" style="display:none; margin-top:6px;"><input type="text" id="protection-other" placeholder="詳細を入力"></div>
             </div>
 
             <div id="category-other-group" style="display:none; margin-bottom:12px;"><input type="text" id="category-other" placeholder="詳細を入力"></div>
@@ -253,7 +254,8 @@
             const responderVal = document.getElementById('responder').value;
             const responderName = document.getElementById('responder-name').value;
             const finalResponder = responderVal === 'クラブ' && responderName ? `クラブ（${responderName}）` : responderVal;
-            const protectionVal = protectionCategories.includes(cat) ? document.getElementById('protection-status').value : null;
+            const protectionRaw = protectionCategories.includes(cat) ? document.getElementById('protection-status').value : null;
+            const protectionVal = protectionRaw === 'その他' ? (document.getElementById('protection-other').value || 'その他') : protectionRaw;
             const msg = {
                 id: Date.now(), date: dateInput.value, event: eventSelect.value, venue: venueSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat, detail: finalDet, protection: protectionVal, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder,
                 timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData, photos: photoUrls, responder: finalResponder }]
