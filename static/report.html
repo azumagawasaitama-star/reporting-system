@@ -80,6 +80,7 @@
             <div id="non-medical-detail-area" style="display:none; margin-bottom:12px;">
                 <label id="detail-label">詳細種別</label>
                 <div id="detail-container"></div>
+                <div id="protection-group" style="display:none; margin-top:8px;"><label>保護・捜査</label><select id="protection-status"><option value="なし">なし</option><option value="保護">保護</option><option value="捜査">捜査</option><option value="その他">その他</option></select></div>
             </div>
 
             <div id="category-other-group" style="display:none; margin-bottom:12px;"><input type="text" id="category-other" placeholder="詳細を入力"></div>
@@ -156,8 +157,8 @@
         const details = {
             '医事対応': ['一時失神', '意識なし', 'めまい', '寒気・震え', '腹痛', '吐き気', '頭痛', '過呼吸', '外傷・出血', '動悸', 'その他'],
             'ご意見・ご要望': ['待機列', '接客対応', '設備', 'その他'],
-            '迷子・迷いびと': ['迷子', '迷いびと', '保護', '捜査', 'その他'],
-            '落とし物': ['財布・お金', 'スマートフォン', '衣類・バッグ', 'チケット', '保護', '捜査', 'その他'],
+            '迷子・迷いびと': ['迷子', '迷いびと', 'その他'],
+            '落とし物': ['財布・お金', 'スマートフォン', '衣類・バッグ', 'チケット', 'その他'],
             'サポーター対応': ['トラブル', '案内', 'その他'],
             '施設トラブル': ['設備故障', '清掃', '安全', 'その他'],
             'チケットトラブル': ['入場不可', '重複', '紛失', 'その他'],
@@ -166,6 +167,7 @@
             'その他': ['その他']
         };
 
+        const protectionCategories = ['迷子・迷いびと', '落とし物'];
         document.getElementById('category').onchange = () => {
             const cat = document.getElementById('category').value;
             const d = details[cat];
@@ -179,6 +181,8 @@
                 document.getElementById('non-medical-detail-area').style.display = 'block';
                 document.getElementById('detail-container').innerHTML = `<select id="detail" onchange="checkCategoryOther()"><option value="なし">なし</option>${d.map(v => `<option value="${v}">${v}</option>`).join('')}</select>`;
             }
+            document.getElementById('protection-group').style.display = protectionCategories.includes(cat) ? 'block' : 'none';
+            document.getElementById('protection-status').value = 'なし';
             checkCategoryOther();
         };
 
@@ -249,8 +253,9 @@
             const responderVal = document.getElementById('responder').value;
             const responderName = document.getElementById('responder-name').value;
             const finalResponder = responderVal === 'クラブ' && responderName ? `クラブ（${responderName}）` : responderVal;
+            const protectionVal = protectionCategories.includes(cat) ? document.getElementById('protection-status').value : null;
             const msg = {
-                id: Date.now(), date: dateInput.value, event: eventSelect.value, venue: venueSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat, detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder,
+                id: Date.now(), date: dateInput.value, event: eventSelect.value, venue: venueSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat, detail: finalDet, protection: protectionVal, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder,
                 timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData, photos: photoUrls, responder: finalResponder }]
             };
             socket.send(JSON.stringify(msg));

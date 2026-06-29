@@ -118,6 +118,7 @@
 
             <div id="non-medical-detail-area" style="display:none; margin-top:10px;">
                 <div id="detail-group" style="visibility:hidden;"><label id="detail-label">詳細種別</label><div id="detail-container"></div></div>
+                <div id="protection-group" style="display:none; margin-top:8px;"><label>保護・捜査</label><select id="protection-status"><option value="なし">なし</option><option value="保護">保護</option><option value="捜査">捜査</option><option value="その他">その他</option></select></div>
             </div>
 
             <div id="category-other-group" style="display:none; margin-top:10px; margin-bottom:10px;"><input type="text" id="category-other" placeholder="カテゴリ・種別の詳細を入力"></div>
@@ -285,8 +286,8 @@
         const details = {
             '医事対応': ['一時失神', '意識なし', 'めまい', '寒気・震え', '腹痛', '吐き気', '頭痛', '過呼吸', '外傷・出血', '動悸', 'その他'],
             'ご意見・ご要望': ['待機列', '接客対応', '設備', 'その他'],
-            '迷子・迷いびと': ['迷子', '迷いびと', '保護', '捜査', 'その他'],
-            '落とし物': ['財布・お金', 'スマートフォン', '衣類・バッグ', 'チケット', '保護', '捜査', 'その他'],
+            '迷子・迷いびと': ['迷子', '迷いびと', 'その他'],
+            '落とし物': ['財布・お金', 'スマートフォン', '衣類・バッグ', 'チケット', 'その他'],
             'サポーター対応': ['トラブル', '案内', 'その他'],
             '施設トラブル': ['設備故障', '清掃', '安全', 'その他'],
             'チケットトラブル': ['入場不可', '重複', '紛失', 'その他'],
@@ -313,8 +314,11 @@
             document.getElementById('non-medical-detail-area').style.display = (cat === '医事対応' || cat === 'なし') ? 'none' : 'block';
             document.getElementById('med-restarea-group').style.display = (cat === '医事対応' && status === '休憩室へアテンド完了') ? 'block' : 'none';
         }
+        const protectionCategories = ['迷子・迷いびと', '落とし物'];
         function updateDetailUI() {
             const cat = document.getElementById('category').value;
+            document.getElementById('protection-group').style.display = protectionCategories.includes(cat) ? 'block' : 'none';
+            document.getElementById('protection-status').value = 'なし';
             const d = details[cat]; if (!d) return;
             if (cat === '医事対応') {
                 document.getElementById('medical-detail-container').innerHTML = d.map(v => `<label class="check-button"><input type="checkbox" name="med-detail" value="${v}" onchange="checkCategoryOther()"><span class="check-label">${v}</span></label>`).join('');
@@ -438,8 +442,9 @@
             const responderVal = document.getElementById('responder').value;
             const responderName = document.getElementById('responder-name').value;
             const finalResponder = responderVal === 'クラブ' && responderName ? `クラブ（${responderName}）` : responderVal;
+            const protectionVal = protectionCategories.includes(cat) ? document.getElementById('protection-status').value : null;
             const msg = {
-                id: Date.now(), date: dateInput.value, event: eventSelect.value, venue: venueSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat || 'その他', detail: finalDet, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder,
+                id: Date.now(), date: dateInput.value, event: eventSelect.value, venue: venueSelect.value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', sender: senderName, category: cat || 'その他', detail: finalDet, protection: protectionVal, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, medical: medicalData, photos: photoUrls, responder: finalResponder,
                 timeline: [{ time: time, sender: senderName, message: document.getElementById('message').value || '(内容なし)', status: document.getElementById('status').value, location: finalLoc || 'なし', sub_location: subLoc || 'なし', medical: medicalData, responder: finalResponder }]
             };
             socket.send(JSON.stringify(msg));
@@ -481,7 +486,8 @@
             `).join('');
             const photosHtml = (data.photos && data.photos.length > 0) ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;">${data.photos.map(u => `<a href="${u}" target="_blank"><img src="${u}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #DDD;"></a>`).join('')}</div>` : '';
             const responderHtml = (data.responder && data.responder !== 'なし') ? `<div style="font-size:0.75rem; color:#555; margin-top:3px;">対応: ${data.responder}</div>` : '';
-            row.innerHTML = `<td><small>${data.event}${data.venue ? ' / ' + data.venue : ''}</small><br><strong>${data.location}</strong><br><small style="color:#666">${data.sub_location}</small>${photosHtml}</td><td>${data.sender}</td><td>${data.category}<br><small style="color:#888">${data.detail}</small>${medicalInfoHtml}${responderHtml}</td><td><div class="history-box">${historyHtml}</div></td><td><span class="status-badge ${statusClass}">${data.status}</span>${wheelchairWarning}</td>`;
+            const protectionHtml = (data.protection && data.protection !== 'なし') ? `<div style="font-size:0.75rem; color:#5856D6; margin-top:3px; font-weight:bold;">● ${data.protection}</div>` : '';
+            row.innerHTML = `<td><small>${data.event}${data.venue ? ' / ' + data.venue : ''}</small><br><strong>${data.location}</strong><br><small style="color:#666">${data.sub_location}</small>${photosHtml}</td><td>${data.sender}</td><td>${data.category}<br><small style="color:#888">${data.detail}</small>${medicalInfoHtml}${protectionHtml}${responderHtml}</td><td><div class="history-box">${historyHtml}</div></td><td><span class="status-badge ${statusClass}">${data.status}</span>${wheelchairWarning}</td>`;
             let card = document.getElementById(`mobile-card-${data.id}`);
             if (!card) { card = document.createElement('div'); card.id = `mobile-card-${data.id}`; card.className = 'report-card'; card.onclick = () => openModal(data.id); document.getElementById('mobile-card-list').prepend(card); }
             const photoCount = (data.photos && data.photos.length > 0) ? `<span style="font-size:0.7rem; color:#007AFF; margin-left:6px;">📷 ${data.photos.length}枚</span>` : '';
