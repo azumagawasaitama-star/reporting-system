@@ -1,6 +1,8 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+import asyncio
+import urllib.request
 from sqlalchemy import create_engine, Column, Integer, String, JSON as SQLAlchemyJSON, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -39,6 +41,53 @@ Base.metadata.create_all(bind=engine)
 
 # --- FastAPI設定 ---
 app = FastAPI()
+
+KEEP_ALIVE_TASK = None
+
+async def keep_alive_loop(host_url: str):
+    print(f"Starting keep-alive loop for {host_url}")
+    while True:
+        try:
+            # 10分待機 (600秒)
+            await asyncio.sleep(600)
+            
+            # 日本時間(JST)の現在時刻を取得
+            now_jst = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
+            
+            # 0時台（0:00〜0:59）ならループを終了してスリープを許可する
+            if now_jst.hour == 0:
+                print("深夜0時を回ったため、スリープ防止ループを停止します。")
+                global KEEP_ALIVE_TASK
+                KEEP_ALIVE_TASK = None
+                break
+                
+            # 自分自身にアクセス (Ping)
+            ping_url = f"{host_url}/ping"
+            req = urllib.request.Request(ping_url)
+            with urllib.request.urlopen(req) as response:
+                print(f"Self-ping sent to {ping_url}. Status: {response.status}")
+                
+        except Exception as e:
+            print(f"Keep-alive error: {e}")
+
+@app.get("/ping")
+async def ping():
+    return {"status": "alive"}
+
+@app.middleware("http")
+async def keep_alive_middleware(request: Request, call_next):
+    global KEEP_ALIVE_TASK
+    # /ping への定期リクエスト自体ではループを起動しないようにする
+    if request.url.path != "/ping" and KEEP_ALIVE_TASK is None:
+        # Render等のリバースプロキシ環境を考慮して public URL を構築
+        scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+        host = request.headers.get("host", request.url.netloc)
+        if host:
+            host_url = f"{scheme}://{host}"
+            KEEP_ALIVE_TASK = asyncio.create_task(keep_alive_loop(host_url))
+            
+    response = await call_next(request)
+    return response
 
 # 静的ファイルの配信設定
 app.mount("/static", StaticFiles(directory="static"), name="static")
