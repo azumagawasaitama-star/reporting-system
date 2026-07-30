@@ -9,7 +9,7 @@
 <body>
   <div class="container">
     <div id="form-view">
-      <h1>連絡する</h1>
+      <h1>新しい連絡を送る</h1>
       <div class="card">
         <label for="area-select">エリア</label>
         <select id="area-select"></select>
@@ -23,9 +23,16 @@
         <div class="error-box" id="form-error"></div>
         <button class="primary" id="submit-btn">送信する</button>
       </div>
+
+      <div id="history-section" style="margin-top: 30px; display: none;">
+        <h2>過去の連絡履歴</h2>
+        <p class="notice">この端末から送信した過去の連絡一覧です。タップするとやり取りの続きを確認できます。</p>
+        <div id="history-list"></div>
+      </div>
     </div>
 
     <div id="thread-view" style="display:none;">
+      <a class="back-link" href="#" id="back-to-list">&larr; 新規作成・一覧に戻る</a>
       <h1 id="thread-title">連絡スレッド</h1>
       <p class="notice">この画面はあなたが送った連絡への返信専用です。他のスタッフのやり取りは表示されません。</p>
       <div class="thread" id="thread-messages"></div>
@@ -33,23 +40,29 @@
         <textarea id="reply-text" placeholder="追記する..."></textarea>
         <button class="primary" id="reply-btn">送信</button>
       </div>
-
-      <p style="margin-top:20px;">
-        <a class="back-link" href="#" id="new-report-link">別の連絡を新規に送る</a>
-      </p>
     </div>
   </div>
 
   <script>
-    const STORAGE_KEY = "staff_report_session";
+    const STORAGE_KEY = "staff_reports_history";
 
-    function getSession() {
+    function getHistory() {
       const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      return raw ? JSON.parse(raw) : [];
     }
 
-    function saveSession(reportId, token) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ reportId, token }));
+    function addHistory(reportId, token, message) {
+      const history = getHistory();
+      // Remove if exists to push to top
+      const filtered = history.filter(h => h.reportId !== reportId);
+      filtered.unshift({
+        reportId,
+        token,
+        preview: message.length > 20 ? message.substring(0, 20) + "..." : message,
+        date: new Date().toISOString()
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+      renderHistory();
     }
 
     function escapeHtml(str) {
@@ -59,7 +72,11 @@
     }
 
     function formatTime(iso) {
-      const d = new Date(iso + "Z");
+      const d = new Date(iso);
+      if (isNaN(d)) {
+          // If iso string doesn't have Z, add it for backend times
+          return new Date(iso + "Z").toLocaleString("ja-JP", { hour: "2-digit", minute: "2-digit", month: "numeric", day: "numeric" });
+      }
       return d.toLocaleString("ja-JP", { hour: "2-digit", minute: "2-digit", month: "numeric", day: "numeric" });
     }
 
@@ -72,6 +89,29 @@
         return;
       }
       select.innerHTML = areas.map((a) => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
+    }
+
+    function renderHistory() {
+      const history = getHistory();
+      const section = document.getElementById("history-section");
+      const list = document.getElementById("history-list");
+      if (history.length === 0) {
+        section.style.display = "none";
+        return;
+      }
+      section.style.display = "block";
+      list.innerHTML = history.map(h => `
+        <div class="report-item" data-id="${h.reportId}" data-token="${h.token}">
+          <div><strong>${escapeHtml(h.preview)}</strong></div>
+          <div class="meta">${formatTime(h.date)}</div>
+        </div>
+      `).join("");
+
+      list.querySelectorAll(".report-item").forEach(el => {
+        el.addEventListener("click", () => {
+          showThreadView(el.dataset.id, el.dataset.token);
+        });
+      });
     }
 
     async function submitReport() {
@@ -111,14 +151,15 @@
         }
 
         const data = await res.json();
-        saveSession(data.report_id, data.staff_token);
+        addHistory(data.report_id, data.staff_token, message);
+        document.getElementById("staff-message").value = ""; // clear form
         await showThreadView(data.report_id, data.staff_token);
       } finally {
         submitBtn.disabled = false;
       }
     }
 
-    function startNewReport() {
+    function showFormView() {
       activeReportId = null;
       activeToken = null;
       clearInterval(pollTimer);
@@ -127,15 +168,16 @@
         currentWs.close();
         currentWs = null;
       }
-      localStorage.removeItem(STORAGE_KEY);
       document.getElementById("thread-view").style.display = "none";
       document.getElementById("form-view").style.display = "block";
-      document.getElementById("staff-name").value = "";
-      document.getElementById("staff-message").value = "";
-      loadAreas();
+      renderHistory();
     }
 
     let currentWs = null;
+    let pollTimer = null;
+    let reconnectTimer = null;
+    let activeReportId = null;
+    let activeToken = null;
 
     function renderMessages(report) {
       const container = document.getElementById("thread-messages");
@@ -161,11 +203,6 @@
       container.scrollTop = container.scrollHeight;
     }
 
-    let pollTimer = null;
-    let reconnectTimer = null;
-    let activeReportId = null;
-    let activeToken = null;
-
     async function refreshThread() {
       if (!activeReportId) return;
       const r = await fetch(`/api/contact/reports/${activeReportId}?token=${encodeURIComponent(activeToken)}`);
@@ -176,6 +213,10 @@
 
     function connectStaffWs() {
       if (!activeReportId) return;
+      if (currentWs) {
+        currentWs.onclose = null;
+        currentWs.close();
+      }
       const protocol = location.protocol === "https:" ? "wss" : "ws";
       currentWs = new WebSocket(
         `${protocol}://${location.host}/ws/contact/staff/${activeReportId}?token=${encodeURIComponent(activeToken)}`
@@ -200,16 +241,15 @@
     async function showThreadView(reportId, token) {
       document.getElementById("form-view").style.display = "none";
       document.getElementById("thread-view").style.display = "block";
+      document.getElementById("thread-messages").innerHTML = "読み込み中...";
 
       const res = await fetch(`/api/contact/reports/${reportId}?token=${encodeURIComponent(token)}`);
       if (!res.ok) {
-        localStorage.removeItem(STORAGE_KEY);
-        document.getElementById("thread-view").innerHTML =
-          '<p class="error-box">連絡が見つかりませんでした。もう一度送信してください。</p>';
+        document.getElementById("thread-messages").innerHTML =
+          '<p class="error-box">連絡が見つかりませんでした。期限切れか削除された可能性があります。</p>';
         return;
       }
       const report = await res.json();
-      document.getElementById("thread-title").textContent = `連絡スレッド`;
       renderMessages(report);
 
       activeReportId = reportId;
@@ -221,14 +261,13 @@
     }
 
     async function sendReply() {
-      const session = getSession();
-      if (!session) return;
+      if (!activeReportId || !activeToken) return;
       const textarea = document.getElementById("reply-text");
       const text = textarea.value.trim();
       if (!text) return;
 
       const res = await fetch(
-        `/api/contact/staff/reports/${session.reportId}/messages?token=${encodeURIComponent(session.token)}`,
+        `/api/contact/staff/reports/${activeReportId}/messages?token=${encodeURIComponent(activeToken)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -237,26 +276,37 @@
       );
       if (res.ok) {
         textarea.value = "";
-        const r = await fetch(`/api/contact/reports/${session.reportId}?token=${encodeURIComponent(session.token)}`);
-        if (r.ok) {
-          renderMessages(await r.json());
-        }
+        refreshThread();
       }
     }
 
     document.getElementById("submit-btn").addEventListener("click", submitReport);
     document.getElementById("reply-btn").addEventListener("click", sendReply);
-    document.getElementById("new-report-link").addEventListener("click", (e) => {
+    document.getElementById("back-to-list").addEventListener("click", (e) => {
       e.preventDefault();
-      startNewReport();
+      showFormView();
     });
 
     (async function init() {
-      const session = getSession();
-      if (session) {
-        await showThreadView(session.reportId, session.token);
-      } else {
-        await loadAreas();
+      // Migrate old format to new array format if exists
+      const oldSession = localStorage.getItem("staff_report_session");
+      if (oldSession) {
+        try {
+          const parsed = JSON.parse(oldSession);
+          if (parsed && parsed.reportId && parsed.token) {
+            addHistory(parsed.reportId, parsed.token, "以前の連絡");
+          }
+        } catch(e) {}
+        localStorage.removeItem("staff_report_session");
+      }
+
+      await loadAreas();
+      renderHistory();
+      
+      const history = getHistory();
+      if (history.length > 0) {
+        // Automatically open the most recent one to match old behavior partially?
+        // Actually, let's just show the form and history list.
       }
     })();
   </script>
