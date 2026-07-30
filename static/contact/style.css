@@ -1,0 +1,218 @@
+:root {
+  --bg: #f5f6f8;
+  --card-bg: #ffffff;
+  --text: #1a1a1a;
+  --sub-text: #6b7280;
+  --border: #e2e5ea;
+  --accent: #2563eb;
+  --accent-text: #ffffff;
+  --staff-bubble: #eef1f6;
+  --leader-bubble: #dbe7ff;
+  --danger: #dc2626;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 20px 16px 80px;
+}
+
+h1 {
+  font-size: 1.3rem;
+  margin: 8px 0 20px;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 0 0 12px;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.button-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+a.role-button, button.primary {
+  display: block;
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: var(--card-bg);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+input[type="text"], textarea, select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  margin-bottom: 12px;
+  background: var(--card-bg);
+  color: var(--text);
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+label {
+  font-size: 0.85rem;
+  color: var(--sub-text);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.report-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  background: var(--card-bg);
+}
+
+.report-item:hover {
+  border-color: var(--accent);
+}
+
+.report-item .meta {
+  font-size: 0.8rem;
+  color: var(--sub-text);
+  margin-top: 4px;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.bubble {
+  max-width: 80%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+}
+
+.bubble.theirs {
+  background: var(--staff-bubble);
+  align-self: flex-start;
+}
+
+.bubble.mine {
+  background: var(--leader-bubble);
+  align-self: flex-end;
+}
+
+.bubble .sender {
+  font-size: 0.75rem;
+  color: var(--sub-text);
+  margin-bottom: 4px;
+}
+
+.reply-box {
+  display: flex;
+  gap: 8px;
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  padding-top: 8px;
+}
+
+.reply-box textarea {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.reply-box button.primary {
+  width: auto;
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.notice {
+  font-size: 0.85rem;
+  color: var(--sub-text);
+  margin-bottom: 12px;
+}
+
+.error-box {
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
+.secret-box {
+  background: #fff7e6;
+  border: 1px solid #f2c94c;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+  word-break: break-all;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181c;
+    --card-bg: #212227;
+    --text: #f0f0f2;
+    --sub-text: #9a9ba3;
+    --border: #33343a;
+    --staff-bubble: #2c2d33;
+    --leader-bubble: #2a3a63;
+    --secret-bg: #3a331a;
+  }
+  .secret-box {
+    background: #3a331a;
+    border-color: #7a6a2a;
+  }
+}

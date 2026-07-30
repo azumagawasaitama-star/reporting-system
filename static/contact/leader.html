@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>リーダー画面</title>
+  <link rel="stylesheet" href="/static/contact/style.css" />
+</head>
+<body>
+  <div class="container">
+    <div id="dashboard-view">
+      <h1>リーダー用ダッシュボード</h1>
+      <div class="card" id="area-switcher-card">
+        <label for="area-switcher">自分の担当エリアを選択</label>
+        <select id="area-switcher"></select>
+      </div>
+
+      <div class="card" id="new-area-card" style="display:none; background:#f0fdf4; border-color:#86efac;">
+        <label for="new-area-name">新しいエリア名を作成</label>
+        <input type="text" id="new-area-name" placeholder="例: 医務室エリア" />
+        <button class="primary" id="create-area-btn">エリアを作成</button>
+      </div>
+
+      <div id="area-content" style="display:none;">
+        <h2 id="area-title" style="margin-top:20px;">エリア</h2>
+
+        <div class="card">
+          <button class="secondary" id="enable-push-btn">🔔 通知を有効にする</button>
+          <label style="margin-top:10px;">
+            <input type="checkbox" id="alert-repeat-checkbox" checked />
+            対応するまで通知を繰り返す
+          </label>
+          <div class="notice" id="push-status"></div>
+        </div>
+
+        <div id="list-view">
+          <h2>連絡一覧</h2>
+          <div id="report-list"></div>
+        </div>
+
+        <div id="thread-view" style="display:none;">
+          <a class="back-link" href="#" id="back-to-list">&larr; 一覧に戻る</a>
+          <h2 id="thread-staff-name"></h2>
+          <div id="ack-box" style="display:none;" class="notice"></div>
+          <div class="thread" id="thread-messages"></div>
+          <div class="reply-box">
+            <textarea id="reply-text" placeholder="返信する..."></textarea>
+            <button class="primary" id="reply-btn">送信</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const VAPID_PUBLIC_KEY = "BMdcqiGZYsaIzugJ3niAA3TaTV9QZHUOmrTrWubeVmy8SvAhywBDglSNXQ5QGGxHRDqLVEKv7LUrqUkyV2f3vkw";
+    const CREATE_NEW_VALUE = "__create_new__";
+    let currentAreaId = null;
+    let currentReportId = null;
+    let leaderWs = null;
+    let leaderName = null;
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+      const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+      const rawData = atob(base64);
+      return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function formatTime(iso) {
+      const d = new Date(iso + "Z");
+      return d.toLocaleString("ja-JP", { hour: "2-digit", minute: "2-digit", month: "numeric", day: "numeric" });
+    }
+
+    function getLeaderName() {
+      if (leaderName) return leaderName;
+      leaderName = localStorage.getItem("leader_name");
+      if (!leaderName) {
+        leaderName = prompt("お名前を入力してください（返信の送信者名として使われます）") || "リーダー";
+        localStorage.setItem("leader_name", leaderName);
+      }
+      return leaderName;
+    }
+
+    async function loadAreas() {
+      const res = await fetch("/api/contact/areas");
+      const areas = await res.json();
+      const select = document.getElementById("area-switcher");
+      const options = areas
+        .map((a) => `<option value="${a.id}" ${a.id === currentAreaId ? "selected" : ""}>${escapeHtml(a.name)}</option>`)
+        .join("");
+      select.innerHTML = '<option value="">▼エリアを選択してください</option>' + options + `<option value="${CREATE_NEW_VALUE}">＋ 新しいエリアを作成</option>`;
+    }
+
+    document.getElementById("area-switcher").addEventListener("change", async (e) => {
+      const val = e.target.value;
+      if (val === CREATE_NEW_VALUE) {
+        document.getElementById("new-area-card").style.display = "block";
+        document.getElementById("area-content").style.display = "none";
+        currentAreaId = null;
+      } else if (val) {
+        document.getElementById("new-area-card").style.display = "none";
+        await switchArea(val);
+      } else {
+        document.getElementById("new-area-card").style.display = "none";
+        document.getElementById("area-content").style.display = "none";
+        currentAreaId = null;
+      }
+    });
+
+    document.getElementById("create-area-btn").addEventListener("click", async () => {
+      const name = document.getElementById("new-area-name").value.trim();
+      if (!name) return alert("エリア名を入力してください。");
+      const res = await fetch("/api/contact/areas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (res.ok) {
+        const area = await res.json();
+        document.getElementById("new-area-name").value = "";
+        document.getElementById("new-area-card").style.display = "none";
+        await loadAreas();
+        document.getElementById("area-switcher").value = area.id;
+        await switchArea(area.id);
+      }
+    });
+
+    async function switchArea(areaId) {
+      currentAreaId = areaId;
+      const select = document.getElementById("area-switcher");
+      document.getElementById("area-title").textContent = select.options[select.selectedIndex].text;
+      document.getElementById("area-content").style.display = "block";
+      document.getElementById("list-view").style.display = "block";
+      document.getElementById("thread-view").style.display = "none";
+      
+      await loadReportList();
+      connectLeaderWs();
+    }
+
+    async function loadReportList() {
+      if (!currentAreaId) return;
+      const res = await fetch(`/api/contact/reports?area_id=${currentAreaId}`);
+      if (!res.ok) return;
+      const reports = await res.json();
+      const listEl = document.getElementById("report-list");
+      if (reports.length === 0) {
+        listEl.innerHTML = '<p class="notice">まだ連絡はありません。</p>';
+        return;
+      }
+      reports.sort((a, b) => {
+        const aPending = a.acknowledged_at ? 0 : 1;
+        const bPending = b.acknowledged_at ? 0 : 1;
+        return bPending - aPending;
+      });
+      listEl.innerHTML = reports
+        .map((r) => {
+          const badge = !r.acknowledged_at
+            ? '<span style="color:#dc2626;font-weight:600;">【未対応】</span> '
+            : "";
+          return `<div class="report-item" data-id="${r.id}">
+            <div>${badge}<strong>${escapeHtml(r.staff_name)}</strong></div>
+            <div>${escapeHtml(r.message)}</div>
+            <div class="meta">${formatTime(r.created_at)}</div>
+          </div>`;
+        })
+        .join("");
+      listEl.querySelectorAll(".report-item").forEach((el) => {
+        el.addEventListener("click", () => openThread(el.dataset.id));
+      });
+    }
+
+    function renderThreadMessages(report) {
+      const container = document.getElementById("thread-messages");
+      const all = [
+        {
+          sender_role: "staff",
+          sender_name: report.staff_name,
+          text: report.message,
+          created_at: report.created_at,
+        },
+        ...report.messages,
+      ];
+      container.innerHTML = all
+        .map((m) => {
+          const mineClass = m.sender_role === "leader" ? "mine" : "theirs";
+          const label = m.sender_role === "leader" ? `リーダー（${escapeHtml(m.sender_name)}）` : escapeHtml(m.sender_name);
+          return `<div class="bubble ${mineClass}">
+            <div class="sender">${label} ・ ${formatTime(m.created_at)}</div>
+            <div>${escapeHtml(m.text)}</div>
+          </div>`;
+        })
+        .join("");
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function renderAckBox(report) {
+      const box = document.getElementById("ack-box");
+      box.style.display = "block";
+      if (report.acknowledged_at) {
+        box.innerHTML = `対応済み（${formatTime(report.acknowledged_at)}）`;
+      } else {
+        box.innerHTML = `<span style="color:#dc2626;">未対応です。</span> <button class="secondary" id="ack-btn">対応します</button>`;
+        document.getElementById("ack-btn").addEventListener("click", () => ackReport(report.id));
+      }
+    }
+
+    async function ackReport(reportId) {
+      await fetch(`/api/contact/reports/${reportId}/acknowledge`, { method: "POST" });
+      await refreshCurrentThreadIfOpen(reportId);
+      await loadReportList();
+    }
+
+    async function openThread(reportId) {
+      currentReportId = reportId;
+      document.getElementById("list-view").style.display = "none";
+      document.getElementById("thread-view").style.display = "block";
+      const res = await fetch(`/api/contact/reports/${reportId}`);
+      if (!res.ok) return;
+      const report = await res.json();
+      document.getElementById("thread-staff-name").textContent = `${report.staff_name} さんの連絡`;
+      renderThreadMessages(report);
+      renderAckBox(report);
+    }
+
+    async function refreshCurrentThreadIfOpen(reportId) {
+      if (currentReportId === reportId && document.getElementById("thread-view").style.display !== "none") {
+        const res = await fetch(`/api/contact/reports/${reportId}`);
+        if (res.ok) {
+          const report = await res.json();
+          renderThreadMessages(report);
+          renderAckBox(report);
+        }
+      }
+    }
+
+    async function sendLeaderReply() {
+      const textarea = document.getElementById("reply-text");
+      const text = textarea.value.trim();
+      if (!text || !currentReportId) return;
+      const res = await fetch(`/api/contact/reports/${currentReportId}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sender_name: getLeaderName(), text }),
+      });
+      if (res.ok) {
+        textarea.value = "";
+        const r = await fetch(`/api/contact/reports/${currentReportId}`);
+        if (r.ok) renderThreadMessages(await r.json());
+      }
+    }
+
+    document.getElementById("back-to-list").addEventListener("click", (e) => {
+      e.preventDefault();
+      document.getElementById("thread-view").style.display = "none";
+      document.getElementById("list-view").style.display = "block";
+      currentReportId = null;
+    });
+    document.getElementById("reply-btn").addEventListener("click", sendLeaderReply);
+
+    function withTimeout(promise, ms, message) {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+      ]);
+    }
+
+    async function enablePush() {
+      const statusEl = document.getElementById("push-status");
+      statusEl.textContent = "";
+
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        statusEl.textContent = "このブラウザは通知に対応していません。";
+        return;
+      }
+
+      try {
+        statusEl.textContent = "通知の許可を確認しています...";
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          statusEl.textContent = "通知が許可されませんでした。";
+          return;
+        }
+
+        statusEl.textContent = "登録しています...";
+        const reg = await navigator.serviceWorker.register("/contact/sw.js", { scope: "/contact/" });
+        await withTimeout(navigator.serviceWorker.ready, 8000, "service worker ready timeout");
+
+        statusEl.textContent = "購読しています...";
+        const subscription = await withTimeout(
+          reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          }),
+          8000,
+          "subscribe timeout"
+        );
+
+        const subJson = subscription.toJSON();
+        const alertRepeatEnabled = document.getElementById("alert-repeat-checkbox").checked;
+        await fetch(`/api/contact/subscribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...subJson, area_id: currentAreaId, alert_repeat_enabled: alertRepeatEnabled }),
+        });
+        statusEl.textContent = "通知を有効にしました。";
+      } catch (e) {
+        console.error(e);
+        statusEl.textContent = `通知の設定に失敗しました。詳細: ${e}`;
+      }
+    }
+    document.getElementById("enable-push-btn").addEventListener("click", enablePush);
+
+    let leaderPollTimer = null;
+    let leaderReconnectTimer = null;
+
+    function connectLeaderWs() {
+      if (!currentAreaId) return;
+      if (leaderWs) {
+        leaderWs.onclose = null;
+        leaderWs.close();
+      }
+      const protocol = location.protocol === "https:" ? "wss" : "ws";
+      leaderWs = new WebSocket(`${protocol}://${location.host}/ws/contact/leader/${currentAreaId}`);
+      leaderWs.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+        await loadReportList();
+        if ((data.type === "message" || data.type === "acknowledged") && data.report_id) {
+          await refreshCurrentThreadIfOpen(data.report_id);
+        }
+      };
+      leaderWs.onclose = () => {
+        clearTimeout(leaderReconnectTimer);
+        leaderReconnectTimer = setTimeout(connectLeaderWs, 3000);
+      };
+    }
+
+    (async function init() {
+      await loadAreas();
+      const urlParams = new URLSearchParams(location.search);
+      if (urlParams.has("area")) {
+        const a = urlParams.get("area");
+        document.getElementById("area-switcher").value = a;
+        await switchArea(a);
+        if (urlParams.has("report")) {
+          await openThread(urlParams.get("report"));
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

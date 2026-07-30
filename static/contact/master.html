@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>本部（マスター）画面</title>
+  <link rel="stylesheet" href="/static/contact/style.css" />
+  <style>
+    .area-badge {
+      display: inline-block;
+      background: #e0f2fe;
+      color: #0284c7;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.85em;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="dashboard-view">
+      <h1>本部用ダッシュボード（全エリア）</h1>
+
+      <div class="card">
+        <button class="secondary" id="enable-push-btn">🔔 全エリアの通知を受信する</button>
+        <div class="notice" id="push-status"></div>
+      </div>
+
+      <div id="list-view">
+        <h2>全連絡一覧</h2>
+        <div id="report-list"></div>
+      </div>
+
+      <div id="thread-view" style="display:none;">
+        <a class="back-link" href="#" id="back-to-list">&larr; 一覧に戻る</a>
+        <h2 id="thread-staff-name"></h2>
+        <div id="ack-box" style="display:none;" class="notice"></div>
+        <div class="thread" id="thread-messages"></div>
+        <div class="reply-box">
+          <textarea id="reply-text" placeholder="マスターとして返信する..."></textarea>
+          <button class="primary" id="reply-btn">送信</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const VAPID_PUBLIC_KEY = "BMdcqiGZYsaIzugJ3niAA3TaTV9QZHUOmrTrWubeVmy8SvAhywBDglSNXQ5QGGxHRDqLVEKv7LUrqUkyV2f3vkw";
+    let currentReportId = null;
+    let masterWs = null;
+    let masterName = null;
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+      const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+      const rawData = atob(base64);
+      return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function formatTime(iso) {
+      const d = new Date(iso + "Z");
+      return d.toLocaleString("ja-JP", { hour: "2-digit", minute: "2-digit", month: "numeric", day: "numeric" });
+    }
+
+    function getMasterName() {
+      if (masterName) return masterName;
+      masterName = localStorage.getItem("master_name");
+      if (!masterName) {
+        masterName = prompt("お名前を入力してください（返信の送信者名として使われます）") || "本部スタッフ";
+        localStorage.setItem("master_name", masterName);
+      }
+      return masterName;
+    }
+
+    async function loadReportList() {
+      const res = await fetch(`/api/contact/reports`);
+      if (!res.ok) return;
+      const reports = await res.json();
+      const listEl = document.getElementById("report-list");
+      if (reports.length === 0) {
+        listEl.innerHTML = '<p class="notice">まだ連絡はありません。</p>';
+        return;
+      }
+      reports.sort((a, b) => {
+        const aPending = a.acknowledged_at ? 0 : 1;
+        const bPending = b.acknowledged_at ? 0 : 1;
+        return bPending - aPending;
+      });
+      listEl.innerHTML = reports
+        .map((r) => {
+          const badge = !r.acknowledged_at
+            ? '<span style="color:#dc2626;font-weight:600;">【未対応】</span> '
+            : "";
+          return `<div class="report-item" data-id="${r.id}">
+            <div><span class="area-badge">${escapeHtml(r.area_name)}</span> ${badge}<strong>${escapeHtml(r.staff_name)}</strong></div>
+            <div style="margin-top:4px;">${escapeHtml(r.message)}</div>
+            <div class="meta">${formatTime(r.created_at)}</div>
+          </div>`;
+        })
+        .join("");
+      listEl.querySelectorAll(".report-item").forEach((el) => {
+        el.addEventListener("click", () => openThread(el.dataset.id));
+      });
+    }
+
+    function renderThreadMessages(report) {
+      const container = document.getElementById("thread-messages");
+      const all = [
+        {
+          sender_role: "staff",
+          sender_name: report.staff_name,
+          text: report.message,
+          created_at: report.created_at,
+        },
+        ...report.messages,
+      ];
+      container.innerHTML = all
+        .map((m) => {
+          const mineClass = m.sender_role === "leader" || m.sender_role === "master" ? "mine" : "theirs";
+          const label = mineClass === "mine" ? `本部/リーダー（${escapeHtml(m.sender_name)}）` : escapeHtml(m.sender_name);
+          return `<div class="bubble ${mineClass}">
+            <div class="sender">${label} ・ ${formatTime(m.created_at)}</div>
+            <div>${escapeHtml(m.text)}</div>
+          </div>`;
+        })
+        .join("");
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function renderAckBox(report) {
+      const box = document.getElementById("ack-box");
+      box.style.display = "block";
+      if (report.acknowledged_at) {
+        box.innerHTML = `対応済み（${formatTime(report.acknowledged_at)}）`;
+      } else {
+        box.innerHTML = `<span style="color:#dc2626;">未対応です。</span> <button class="secondary" id="ack-btn">対応します</button>`;
+        document.getElementById("ack-btn").addEventListener("click", () => ackReport(report.id));
+      }
+    }
+
+    async function ackReport(reportId) {
+      await fetch(`/api/contact/reports/${reportId}/acknowledge`, { method: "POST" });
+      await refreshCurrentThreadIfOpen(reportId);
+      await loadReportList();
+    }
+
+    async function openThread(reportId) {
+      currentReportId = reportId;
+      document.getElementById("list-view").style.display = "none";
+      document.getElementById("thread-view").style.display = "block";
+      const res = await fetch(`/api/contact/reports/${reportId}`);
+      if (!res.ok) return;
+      const report = await res.json();
+      document.getElementById("thread-staff-name").textContent = `【${report.area_name}】${report.staff_name} さんの連絡`;
+      renderThreadMessages(report);
+      renderAckBox(report);
+    }
+
+    async function refreshCurrentThreadIfOpen(reportId) {
+      if (currentReportId === reportId && document.getElementById("thread-view").style.display !== "none") {
+        const res = await fetch(`/api/contact/reports/${reportId}`);
+        if (res.ok) {
+          const report = await res.json();
+          renderThreadMessages(report);
+          renderAckBox(report);
+        }
+      }
+    }
+
+    async function sendMasterReply() {
+      const textarea = document.getElementById("reply-text");
+      const text = textarea.value.trim();
+      if (!text || !currentReportId) return;
+      const res = await fetch(`/api/contact/reports/${currentReportId}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sender_name: getMasterName(), text }),
+      });
+      if (res.ok) {
+        textarea.value = "";
+        const r = await fetch(`/api/contact/reports/${currentReportId}`);
+        if (r.ok) renderThreadMessages(await r.json());
+      }
+    }
+
+    document.getElementById("back-to-list").addEventListener("click", (e) => {
+      e.preventDefault();
+      document.getElementById("thread-view").style.display = "none";
+      document.getElementById("list-view").style.display = "block";
+      currentReportId = null;
+    });
+    document.getElementById("reply-btn").addEventListener("click", sendMasterReply);
+
+    function withTimeout(promise, ms, message) {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+      ]);
+    }
+
+    async function enablePush() {
+      const statusEl = document.getElementById("push-status");
+      statusEl.textContent = "";
+
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        statusEl.textContent = "このブラウザは通知に対応していません。";
+        return;
+      }
+
+      try {
+        statusEl.textContent = "通知の許可を確認しています...";
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          statusEl.textContent = "通知が許可されませんでした。";
+          return;
+        }
+
+        statusEl.textContent = "登録しています...";
+        const reg = await navigator.serviceWorker.register("/contact/sw.js", { scope: "/contact/" });
+        await withTimeout(navigator.serviceWorker.ready, 8000, "service worker ready timeout");
+
+        statusEl.textContent = "購読しています...";
+        const subscription = await withTimeout(
+          reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          }),
+          8000,
+          "subscribe timeout"
+        );
+
+        const subJson = subscription.toJSON();
+        await fetch(`/api/contact/subscribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          // area_id は送らない（=マスターとして全通知を受け取る）
+          body: JSON.stringify({ ...subJson, alert_repeat_enabled: true }),
+        });
+        statusEl.textContent = "通知を有効にしました。";
+      } catch (e) {
+        console.error(e);
+        statusEl.textContent = `通知の設定に失敗しました。詳細: ${e}`;
+      }
+    }
+    document.getElementById("enable-push-btn").addEventListener("click", enablePush);
+
+    let reconnectTimer = null;
+
+    function connectMasterWs() {
+      if (masterWs) {
+        masterWs.onclose = null;
+        masterWs.close();
+      }
+      const protocol = location.protocol === "https:" ? "wss" : "ws";
+      masterWs = new WebSocket(`${protocol}://${location.host}/ws/contact/master`);
+      masterWs.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+        await loadReportList();
+        if ((data.type === "message" || data.type === "acknowledged") && data.report_id) {
+          await refreshCurrentThreadIfOpen(data.report_id);
+        }
+      };
+      masterWs.onclose = () => {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connectMasterWs, 3000);
+      };
+    }
+
+    (async function init() {
+      await loadReportList();
+      connectMasterWs();
+    })();
+  </script>
+</body>
+</html>

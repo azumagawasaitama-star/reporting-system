@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>スタッフ - 連絡</title>
+  <link rel="stylesheet" href="/static/contact/style.css" />
+</head>
+<body>
+  <div class="container">
+    <div id="form-view">
+      <h1>連絡する</h1>
+      <div class="card">
+        <label for="area-select">エリア</label>
+        <select id="area-select"></select>
+
+        <label for="staff-name">お名前</label>
+        <input type="text" id="staff-name" placeholder="山田 太郎" />
+
+        <label for="staff-message">連絡内容</label>
+        <textarea id="staff-message" placeholder="状況を入力してください"></textarea>
+
+        <div class="error-box" id="form-error"></div>
+        <button class="primary" id="submit-btn">送信する</button>
+      </div>
+    </div>
+
+    <div id="thread-view" style="display:none;">
+      <h1 id="thread-title">連絡スレッド</h1>
+      <p class="notice">この画面はあなたが送った連絡への返信専用です。他のスタッフのやり取りは表示されません。</p>
+      <div class="thread" id="thread-messages"></div>
+      <div class="reply-box">
+        <textarea id="reply-text" placeholder="追記する..."></textarea>
+        <button class="primary" id="reply-btn">送信</button>
+      </div>
+
+      <p style="margin-top:20px;">
+        <a class="back-link" href="#" id="new-report-link">別の連絡を新規に送る</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "staff_report_session";
+
+    function getSession() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    }
+
+    function saveSession(reportId, token) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ reportId, token }));
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function formatTime(iso) {
+      const d = new Date(iso + "Z");
+      return d.toLocaleString("ja-JP", { hour: "2-digit", minute: "2-digit", month: "numeric", day: "numeric" });
+    }
+
+    async function loadAreas() {
+      const res = await fetch("/api/contact/areas");
+      const areas = await res.json();
+      const select = document.getElementById("area-select");
+      if (areas.length === 0) {
+        select.innerHTML = '<option value="">利用可能なエリアがありません</option>';
+        return;
+      }
+      select.innerHTML = areas.map((a) => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
+    }
+
+    async function submitReport() {
+      const submitBtn = document.getElementById("submit-btn");
+      if (submitBtn.disabled) return;
+
+      const areaId = document.getElementById("area-select").value;
+      const name = document.getElementById("staff-name").value.trim();
+      const message = document.getElementById("staff-message").value.trim();
+      const errorBox = document.getElementById("form-error");
+      errorBox.textContent = "";
+
+      if (!areaId) {
+        errorBox.textContent = "エリアを選択してください。";
+        return;
+      }
+      if (!name) {
+        errorBox.textContent = "お名前を入力してください。";
+        return;
+      }
+      if (!message) {
+        errorBox.textContent = "連絡内容を入力してください。";
+        return;
+      }
+
+      submitBtn.disabled = true;
+      try {
+        const res = await fetch("/api/contact/staff/reports", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ area_id: areaId, staff_name: name, message }),
+        });
+
+        if (!res.ok) {
+          errorBox.textContent = "送信に失敗しました。もう一度お試しください。";
+          return;
+        }
+
+        const data = await res.json();
+        saveSession(data.report_id, data.staff_token);
+        await showThreadView(data.report_id, data.staff_token);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    function startNewReport() {
+      activeReportId = null;
+      activeToken = null;
+      clearInterval(pollTimer);
+      clearTimeout(reconnectTimer);
+      if (currentWs) {
+        currentWs.close();
+        currentWs = null;
+      }
+      localStorage.removeItem(STORAGE_KEY);
+      document.getElementById("thread-view").style.display = "none";
+      document.getElementById("form-view").style.display = "block";
+      document.getElementById("staff-name").value = "";
+      document.getElementById("staff-message").value = "";
+      loadAreas();
+    }
+
+    let currentWs = null;
+
+    function renderMessages(report) {
+      const container = document.getElementById("thread-messages");
+      const all = [
+        {
+          sender_role: "staff",
+          sender_name: report.staff_name,
+          text: report.message,
+          created_at: report.created_at,
+        },
+        ...report.messages,
+      ];
+      container.innerHTML = all
+        .map((m) => {
+          const mineClass = m.sender_role === "staff" ? "mine" : "theirs";
+          const label = m.sender_role === "staff" ? m.sender_name : `リーダー（${escapeHtml(m.sender_name)}）`;
+          return `<div class="bubble ${mineClass}">
+            <div class="sender">${label} ・ ${formatTime(m.created_at)}</div>
+            <div>${escapeHtml(m.text)}</div>
+          </div>`;
+        })
+        .join("");
+      container.scrollTop = container.scrollHeight;
+    }
+
+    let pollTimer = null;
+    let reconnectTimer = null;
+    let activeReportId = null;
+    let activeToken = null;
+
+    async function refreshThread() {
+      if (!activeReportId) return;
+      const r = await fetch(`/api/contact/reports/${activeReportId}?token=${encodeURIComponent(activeToken)}`);
+      if (r.ok) {
+        renderMessages(await r.json());
+      }
+    }
+
+    function connectStaffWs() {
+      if (!activeReportId) return;
+      const protocol = location.protocol === "https:" ? "wss" : "ws";
+      currentWs = new WebSocket(
+        `${protocol}://${location.host}/ws/contact/staff/${activeReportId}?token=${encodeURIComponent(activeToken)}`
+      );
+      currentWs.onmessage = refreshThread;
+      currentWs.onclose = () => {
+        if (!activeReportId) return;
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connectStaffWs, 3000);
+      };
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && activeReportId) {
+        refreshThread();
+        if (!currentWs || currentWs.readyState !== WebSocket.OPEN) {
+          connectStaffWs();
+        }
+      }
+    });
+
+    async function showThreadView(reportId, token) {
+      document.getElementById("form-view").style.display = "none";
+      document.getElementById("thread-view").style.display = "block";
+
+      const res = await fetch(`/api/contact/reports/${reportId}?token=${encodeURIComponent(token)}`);
+      if (!res.ok) {
+        localStorage.removeItem(STORAGE_KEY);
+        document.getElementById("thread-view").innerHTML =
+          '<p class="error-box">連絡が見つかりませんでした。もう一度送信してください。</p>';
+        return;
+      }
+      const report = await res.json();
+      document.getElementById("thread-title").textContent = `連絡スレッド`;
+      renderMessages(report);
+
+      activeReportId = reportId;
+      activeToken = token;
+      connectStaffWs();
+
+      clearInterval(pollTimer);
+      pollTimer = setInterval(refreshThread, 15000);
+    }
+
+    async function sendReply() {
+      const session = getSession();
+      if (!session) return;
+      const textarea = document.getElementById("reply-text");
+      const text = textarea.value.trim();
+      if (!text) return;
+
+      const res = await fetch(
+        `/api/contact/staff/reports/${session.reportId}/messages?token=${encodeURIComponent(session.token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        }
+      );
+      if (res.ok) {
+        textarea.value = "";
+        const r = await fetch(`/api/contact/reports/${session.reportId}?token=${encodeURIComponent(session.token)}`);
+        if (r.ok) {
+          renderMessages(await r.json());
+        }
+      }
+    }
+
+    document.getElementById("submit-btn").addEventListener("click", submitReport);
+    document.getElementById("reply-btn").addEventListener("click", sendReply);
+    document.getElementById("new-report-link").addEventListener("click", (e) => {
+      e.preventDefault();
+      startNewReport();
+    });
+
+    (async function init() {
+      const session = getSession();
+      if (session) {
+        await showThreadView(session.reportId, session.token);
+      } else {
+        await loadAreas();
+      }
+    })();
+  </script>
+</body>
+</html>

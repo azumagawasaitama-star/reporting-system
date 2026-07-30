@@ -91,7 +91,7 @@
 - **Cloud Name**: `dujcnkle9`
 - **Upload Preset**: `yt6zyddz`（Unsigned）
 - **API Key**: `238433227357541`
-- **ログイン**: GitHubアカウントで登録
+- **ログイン**: Googleアカウントで登録
 - **注意**: API Secretはサーバー側不要。Upload Presetは Unsigned のため公開コードに含めてOK。
 - **写真の流れ**: ブラウザ → Cloudinary へ直接アップロード（Renderを経由しない）。
 
