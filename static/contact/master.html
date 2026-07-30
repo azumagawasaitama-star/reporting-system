@@ -99,6 +99,47 @@
       return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
     }
 
+    
+    const CLOUDINARY_CLOUD_NAME = 'dujcnkle9';
+    const CLOUDINARY_UPLOAD_PRESET = 'yt6zyddz';
+
+    async function uploadPhoto(event, textareaId) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      const textarea = document.getElementById(textareaId);
+      const originalPlaceholder = textarea.placeholder;
+      textarea.placeholder = "📷 画像をアップロード中...お待ちください";
+      textarea.disabled = true;
+
+      try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+          const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+              method: 'POST',
+              body: formData
+          });
+          const data = await res.json();
+          if (data.secure_url) {
+              textarea.value += (textarea.value ? '\n' : '') + data.secure_url + '\n';
+          }
+      } catch (e) {
+          alert("画像のアップロードに失敗しました");
+      } finally {
+          textarea.placeholder = originalPlaceholder;
+          textarea.disabled = false;
+          event.target.value = '';
+          textarea.focus();
+      }
+    }
+
+    function formatMessageText(text) {
+        const escaped = escapeHtml(text);
+        const urlRegex = /(https:\/\/res\.cloudinary\.com\/[^\s]+)/g;
+        return escaped.replace(urlRegex, '<br><a href="$1" target="_blank"><img src="$1" style="max-width:100%; max-height:200px; border-radius:8px; margin-top:8px; border:1px solid #ccc;" /></a>');
+    }
+
     function escapeHtml(str) {
       const div = document.createElement("div");
       div.textContent = str;
@@ -168,7 +209,7 @@
           const label = mineClass === "mine" ? `本部/リーダー（${escapeHtml(m.sender_name)}）` : escapeHtml(m.sender_name);
           return `<div class="bubble ${mineClass}">
             <div class="sender">${label} ・ ${formatTime(m.created_at)}</div>
-            <div>${escapeHtml(m.text)}</div>
+            <div>${formatMessageText(m.text)}</div>
           </div>`;
         })
         .join("");

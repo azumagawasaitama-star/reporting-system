@@ -53,10 +53,16 @@
           <h2 id="thread-staff-name"></h2>
           <div id="ack-box" style="display:none;" class="notice"></div>
           <div class="thread" id="thread-messages"></div>
-          <div class="reply-box">
-            <textarea id="reply-text" placeholder="返信する..."></textarea>
-            <button class="primary" id="reply-btn">送信</button>
-          </div>
+
+      <div class="reply-box" style="position:relative;">
+        <textarea id="reply-text" placeholder="返信する..." style="padding-right: 70px;"></textarea>
+        <label style="position:absolute; right:80px; bottom:15px; cursor:pointer; background:#f1f5f9; padding:4px 8px; border-radius:4px; border:1px solid #cbd5e1; font-size:0.9em; color:#333;">
+          📷
+          <input type="file" accept="image/*" style="display:none;" onchange="uploadPhoto(event, 'reply-text')">
+        </label>
+        <button class="primary" id="reply-btn">送信</button>
+      </div>
+
           <div style="margin-top:20px; text-align:right;">
              <button id="delete-this-report-btn" style="background:transparent; color:#ef4444; border:1px solid #ef4444; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:0.9em;">🗑 この報告を完全に削除</button>
           </div>
@@ -109,6 +115,47 @@
       const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
       const rawData = atob(base64);
       return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+    }
+
+    
+    const CLOUDINARY_CLOUD_NAME = 'dujcnkle9';
+    const CLOUDINARY_UPLOAD_PRESET = 'yt6zyddz';
+
+    async function uploadPhoto(event, textareaId) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      const textarea = document.getElementById(textareaId);
+      const originalPlaceholder = textarea.placeholder;
+      textarea.placeholder = "📷 画像をアップロード中...お待ちください";
+      textarea.disabled = true;
+
+      try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+          const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+              method: 'POST',
+              body: formData
+          });
+          const data = await res.json();
+          if (data.secure_url) {
+              textarea.value += (textarea.value ? '\n' : '') + data.secure_url + '\n';
+          }
+      } catch (e) {
+          alert("画像のアップロードに失敗しました");
+      } finally {
+          textarea.placeholder = originalPlaceholder;
+          textarea.disabled = false;
+          event.target.value = '';
+          textarea.focus();
+      }
+    }
+
+    function formatMessageText(text) {
+        const escaped = escapeHtml(text);
+        const urlRegex = /(https:\/\/res\.cloudinary\.com\/[^\s]+)/g;
+        return escaped.replace(urlRegex, '<br><a href="$1" target="_blank"><img src="$1" style="max-width:100%; max-height:200px; border-radius:8px; margin-top:8px; border:1px solid #ccc;" /></a>');
     }
 
     function escapeHtml(str) {
@@ -237,7 +284,7 @@
           const label = m.sender_role === "leader" ? `リーダー（${escapeHtml(m.sender_name)}）` : escapeHtml(m.sender_name);
           return `<div class="bubble ${mineClass}">
             <div class="sender">${label} ・ ${formatTime(m.created_at)}</div>
-            <div>${escapeHtml(m.text)}</div>
+            <div>${formatMessageText(m.text)}</div>
           </div>`;
         })
         .join("");
