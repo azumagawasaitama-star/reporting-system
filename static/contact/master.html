@@ -24,8 +24,16 @@
 
       <div class="card">
         <button class="secondary" id="enable-push-btn">🔔 全エリアの通知を受信する</button>
+        <button class="danger" id="manage-areas-btn" style="margin-top:10px; background:#ef4444; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">⚙️ エリア管理（削除など）</button>
         <div class="notice" id="push-status"></div>
       </div>
+      
+      <div class="card" id="area-management-card" style="display:none; border-color:#ef4444; background:#fef2f2;">
+        <h3 style="margin-top:0; color:#b91c1c;">エリア管理</h3>
+        <p class="notice">エリアを削除すると、そのエリア内の全ての報告とやり取りが完全に消去されます。</p>
+        <div id="manage-area-list"></div>
+      </div>
+
 
       <div id="list-view">
         <h2>全連絡一覧</h2>
@@ -50,6 +58,36 @@
     let currentReportId = null;
     let masterWs = null;
     let masterName = null;
+
+    document.getElementById("manage-areas-btn").addEventListener("click", async () => {
+      const card = document.getElementById("area-management-card");
+      if (card.style.display === "none") {
+        card.style.display = "block";
+        const res = await fetch("/api/contact/areas");
+        if (res.ok) {
+          const areas = await res.json();
+          const list = document.getElementById("manage-area-list");
+          list.innerHTML = areas.map(a => `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid #fca5a5;">
+              <span>${escapeHtml(a.name)}</span>
+              <button onclick="deleteArea('${a.id}', '${escapeHtml(a.name)}')" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">削除</button>
+            </div>
+          `).join("");
+        }
+      } else {
+        card.style.display = "none";
+      }
+    });
+
+    async function deleteArea(areaId, areaName) {
+      if (!confirm(`本当によろしいですか？\nエリア「${areaName}」と、それに紐づくすべての報告データが完全に消去されます。`)) return;
+      const res = await fetch(`/api/contact/areas/${areaId}`, { method: "DELETE" });
+      if (res.ok) {
+        document.getElementById("area-management-card").style.display = "none";
+        await loadReportList();
+      }
+    }
+
 
     function urlBase64ToUint8Array(base64String) {
       const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -262,6 +300,13 @@
       masterWs = new WebSocket(`${protocol}://${location.host}/ws/contact/master`);
       masterWs.onmessage = async (event) => {
         const data = JSON.parse(event.data);
+        if (data.type === "area_deleted" || data.type === "report_deleted" || data.type === "reports_cleared") {
+            if (currentReportId && data.report_id === currentReportId || (data.type === "reports_cleared" || data.type === "area_deleted")) {
+                document.getElementById("thread-view").style.display = "none";
+                document.getElementById("list-view").style.display = "block";
+                currentReportId = null;
+            }
+        }
         await loadReportList();
         if ((data.type === "message" || data.type === "acknowledged") && data.report_id) {
           await refreshCurrentThreadIfOpen(data.report_id);

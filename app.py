@@ -597,6 +597,60 @@ async def contact_subscribe(req: SubscribeRequest):
     finally:
         db.close()
 
+
+@app.delete("/api/contact/areas/{area_id}")
+async def delete_contact_area(area_id: str):
+    db = SessionLocal()
+    try:
+        area = db.query(ContactArea).filter(ContactArea.id == area_id).first()
+        if not area:
+            raise HTTPException(status_code=404)
+        db.query(ContactPushSubscription).filter(ContactPushSubscription.area_id == area_id).delete()
+        reports = db.query(ContactReport).filter(ContactReport.area_id == area_id).all()
+        for r in reports:
+            stop_alert_loop(r.id)
+            db.query(ContactMessage).filter(ContactMessage.report_id == r.id).delete()
+        db.query(ContactReport).filter(ContactReport.area_id == area_id).delete()
+        db.delete(area)
+        db.commit()
+        
+        await manager.broadcast_contact(None, None, {"type": "area_deleted", "area_id": area_id})
+        return {"ok": True}
+    finally:
+        db.close()
+
+@app.delete("/api/contact/areas/{area_id}/reports")
+async def delete_all_area_reports(area_id: str):
+    db = SessionLocal()
+    try:
+        reports = db.query(ContactReport).filter(ContactReport.area_id == area_id).all()
+        for r in reports:
+            stop_alert_loop(r.id)
+            db.query(ContactMessage).filter(ContactMessage.report_id == r.id).delete()
+        db.query(ContactReport).filter(ContactReport.area_id == area_id).delete()
+        db.commit()
+        await manager.broadcast_contact(area_id, None, {"type": "reports_cleared", "area_id": area_id})
+        return {"ok": True}
+    finally:
+        db.close()
+
+@app.delete("/api/contact/reports/{report_id}")
+async def delete_contact_report(report_id: str):
+    db = SessionLocal()
+    try:
+        report = db.query(ContactReport).filter(ContactReport.id == report_id).first()
+        if not report:
+            raise HTTPException(status_code=404)
+        stop_alert_loop(report.id)
+        db.query(ContactMessage).filter(ContactMessage.report_id == report_id).delete()
+        area_id = report.area_id
+        db.delete(report)
+        db.commit()
+        await manager.broadcast_contact(area_id, report_id, {"type": "report_deleted", "report_id": report_id})
+        return {"ok": True}
+    finally:
+        db.close()
+
 # --- 連絡システム WebSocket ---
 @app.websocket("/ws/contact/staff/{report_id}")
 async def ws_contact_staff(websocket: WebSocket, report_id: str, token: str):

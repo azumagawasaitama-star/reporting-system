@@ -26,11 +26,18 @@
 
         <div class="card">
           <button class="secondary" id="enable-push-btn">🔔 通知を有効にする</button>
+          <button class="danger" id="manage-reports-btn" style="margin-top:10px; background:#ef4444; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">⚙️ 報告管理（履歴消去など）</button>
           <label style="margin-top:10px;">
             <input type="checkbox" id="alert-repeat-checkbox" checked />
             対応するまで通知を繰り返す
           </label>
           <div class="notice" id="push-status"></div>
+        </div>
+
+        <div class="card" id="report-management-card" style="display:none; border-color:#ef4444; background:#fef2f2;">
+          <h3 style="margin-top:0; color:#b91c1c;">報告管理</h3>
+          <button id="clear-all-reports-btn" style="background:#ef4444; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; width:100%; margin-bottom:10px;">⚠️ このエリアのすべての報告を消去</button>
+          <p class="notice" style="margin-bottom:0;">個別の報告を削除するには、一覧から連絡を開き、スレッド下部の削除ボタンを使用してください。</p>
         </div>
 
         <div id="list-view">
@@ -47,6 +54,9 @@
             <textarea id="reply-text" placeholder="返信する..."></textarea>
             <button class="primary" id="reply-btn">送信</button>
           </div>
+          <div style="margin-top:20px; text-align:right;">
+             <button id="delete-this-report-btn" style="background:transparent; color:#ef4444; border:1px solid #ef4444; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:0.9em;">🗑 この報告を完全に削除</button>
+          </div>
         </div>
       </div>
     </div>
@@ -59,6 +69,37 @@
     let currentReportId = null;
     let leaderWs = null;
     let leaderName = null;
+
+    document.getElementById("manage-reports-btn").addEventListener("click", () => {
+      const card = document.getElementById("report-management-card");
+      card.style.display = card.style.display === "none" ? "block" : "none";
+    });
+
+    document.getElementById("clear-all-reports-btn").addEventListener("click", async () => {
+      if (!currentAreaId) return;
+      if (!confirm("本当によろしいですか？\nこのエリアに届いたすべての連絡履歴が完全に消去されます。")) return;
+      const res = await fetch(`/api/contact/areas/${currentAreaId}/reports`, { method: "DELETE" });
+      if (res.ok) {
+        document.getElementById("report-management-card").style.display = "none";
+        document.getElementById("thread-view").style.display = "none";
+        document.getElementById("list-view").style.display = "block";
+        currentReportId = null;
+        await loadReportList();
+      }
+    });
+
+    document.getElementById("delete-this-report-btn").addEventListener("click", async () => {
+      if (!currentReportId) return;
+      if (!confirm("この報告とやり取りのスレッドを完全に削除しますか？")) return;
+      const res = await fetch(`/api/contact/reports/${currentReportId}`, { method: "DELETE" });
+      if (res.ok) {
+        document.getElementById("thread-view").style.display = "none";
+        document.getElementById("list-view").style.display = "block";
+        currentReportId = null;
+        await loadReportList();
+      }
+    });
+
 
     function urlBase64ToUint8Array(base64String) {
       const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -330,6 +371,13 @@
       leaderWs = new WebSocket(`${protocol}://${location.host}/ws/contact/leader/${currentAreaId}`);
       leaderWs.onmessage = async (event) => {
         const data = JSON.parse(event.data);
+        if (data.type === "report_deleted" || data.type === "reports_cleared" || data.type === "area_deleted") {
+            if (currentReportId && data.report_id === currentReportId || (data.type === "reports_cleared" || data.type === "area_deleted")) {
+                document.getElementById("thread-view").style.display = "none";
+                document.getElementById("list-view").style.display = "block";
+                currentReportId = null;
+            }
+        }
         await loadReportList();
         if ((data.type === "message" || data.type === "acknowledged") && data.report_id) {
           await refreshCurrentThreadIfOpen(data.report_id);
