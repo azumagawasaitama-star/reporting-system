@@ -9,7 +9,10 @@
 <body>
   <div class="container">
     <div id="form-view">
-      <h1>新しい連絡を送る</h1>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h1>新しい連絡を送る</h1>
+        <button onclick="window.location.reload(true)" style="background:transparent; border:1px solid #ccc; padding:4px 8px; border-radius:4px; font-size:0.9em; cursor:pointer; color:#555;">🔄 再読み込み</button>
+      </div>
       <div class="card">
         <label for="area-select">エリア</label>
         <select id="area-select"></select>

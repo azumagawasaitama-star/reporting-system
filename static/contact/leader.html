@@ -9,7 +9,10 @@
 <body>
   <div class="container">
     <div id="dashboard-view">
-      <h1>リーダー用ダッシュボード</h1>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h1>リーダー用ダッシュボード</h1>
+        <button onclick="window.location.reload(true)" style="background:transparent; border:1px solid #ccc; padding:4px 8px; border-radius:4px; font-size:0.9em; cursor:pointer; color:#555;">🔄 再読み込み</button>
+      </div>
       <div class="card" id="area-switcher-card">
         <label for="area-switcher">自分の担当エリアを選択</label>
         <select id="area-switcher"></select>

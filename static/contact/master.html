@@ -20,7 +20,10 @@
 <body>
   <div class="container">
     <div id="dashboard-view">
-      <h1>本部用ダッシュボード（全エリア）</h1>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h1>本部用ダッシュボード（全エリア）</h1>
+        <button onclick="window.location.reload(true)" style="background:transparent; border:1px solid #ccc; padding:4px 8px; border-radius:4px; font-size:0.9em; cursor:pointer; color:#555;">🔄 再読み込み</button>
+      </div>
 
       <div class="card">
         <button class="secondary" id="enable-push-btn">🔔 全エリアの通知を受信する</button>
