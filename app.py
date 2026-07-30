@@ -124,7 +124,7 @@ def send_push_to_leaders(db, area_id: str, title: str, body: str, url: str = "/"
         db.commit()
 
 # --- アラートループ ---
-ALERT_REPEAT_SECONDS = 12
+ALERT_REPEAT_SECONDS = 4
 ACTIVE_ALERT_TASKS: dict[str, asyncio.Task] = {}
 
 async def alert_repeat_loop(report_id: str, area_id: str, area_name: str):
