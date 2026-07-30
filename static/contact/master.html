@@ -273,8 +273,27 @@
       };
     }
 
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        loadReportList();
+        if (currentReportId) refreshCurrentThreadIfOpen(currentReportId);
+        if (!masterWs || masterWs.readyState !== WebSocket.OPEN) {
+          connectMasterWs();
+        }
+      }
+    });
+
+    let masterPollTimer = null;
+
     (async function init() {
       await loadReportList();
+      
+      clearInterval(masterPollTimer);
+      masterPollTimer = setInterval(async () => {
+        await loadReportList();
+        if (currentReportId) await refreshCurrentThreadIfOpen(currentReportId);
+      }, 5000);
+      
       connectMasterWs();
     })();
   </script>

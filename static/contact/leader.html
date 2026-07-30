@@ -341,8 +341,29 @@
       };
     }
 
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && currentAreaId) {
+        loadReportList();
+        if (currentReportId) refreshCurrentThreadIfOpen(currentReportId);
+        if (!leaderWs || leaderWs.readyState !== WebSocket.OPEN) {
+          connectLeaderWs();
+        }
+      }
+    });
+
+    let leaderPollTimer = null;
+
     (async function init() {
       await loadAreas();
+      
+      clearInterval(leaderPollTimer);
+      leaderPollTimer = setInterval(async () => {
+        if (currentAreaId) {
+          await loadReportList();
+          if (currentReportId) await refreshCurrentThreadIfOpen(currentReportId);
+        }
+      }, 5000);
+
       const urlParams = new URLSearchParams(location.search);
       if (urlParams.has("area")) {
         const a = urlParams.get("area");
