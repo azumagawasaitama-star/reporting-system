@@ -324,17 +324,25 @@
       const text = textarea.value.trim();
       if (!text) return;
 
-      const res = await fetch(
-        `/api/contact/staff/reports/${activeReportId}/messages?token=${encodeURIComponent(activeToken)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
+      const replyBtn = document.getElementById("reply-btn");
+      if (replyBtn.disabled) return;
+      replyBtn.disabled = true;
+
+      try {
+        const res = await fetch(
+          `/api/contact/staff/reports/${activeReportId}/messages?token=${encodeURIComponent(activeToken)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          }
+        );
+        if (res.ok) {
+          textarea.value = "";
+          refreshThread();
         }
-      );
-      if (res.ok) {
-        textarea.value = "";
-        refreshThread();
+      } finally {
+        replyBtn.disabled = false;
       }
     }
 
