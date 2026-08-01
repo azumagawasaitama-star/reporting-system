@@ -123,6 +123,25 @@ def send_push_to_leaders(db, area_id: str, title: str, body: str, url: str = "/"
         )
         db.commit()
 
+# --- プッシュ通知の非同期ディスパッチ ---
+# レスポンスを返す前にプッシュ送信(購読者ごとに最大5秒)を待たせないよう、
+# 独自のDBセッションでバックグラウンドタスクとして実行する。
+BACKGROUND_PUSH_TASKS: set[asyncio.Task] = set()
+
+def _send_push_to_leaders_with_own_session(area_id: str, title: str, body: str, url: str, repeat_only: bool = False):
+    db = SessionLocal()
+    try:
+        send_push_to_leaders(db, area_id, title=title, body=body, url=url, repeat_only=repeat_only)
+    finally:
+        db.close()
+
+def dispatch_push_to_leaders(area_id: str, title: str, body: str, url: str = "/", repeat_only: bool = False):
+    task = asyncio.create_task(
+        asyncio.to_thread(_send_push_to_leaders_with_own_session, area_id, title, body, url, repeat_only)
+    )
+    BACKGROUND_PUSH_TASKS.add(task)
+    task.add_done_callback(BACKGROUND_PUSH_TASKS.discard)
+
 # --- アラートループ ---
 ALERT_REPEAT_SECONDS = 4
 ACTIVE_ALERT_TASKS: dict[str, asyncio.Task] = {}
@@ -475,9 +494,7 @@ async def staff_create_report(req: CreateReportRequest):
         }
         await manager.broadcast_contact(area.id, None, payload)
         
-        await asyncio.to_thread(
-            send_push_to_leaders,
-            db,
+        dispatch_push_to_leaders(
             area.id,
             title=f"新しい報告（{area.name}）",
             body=f"{report.staff_name}: {report.message}",
@@ -513,9 +530,7 @@ async def add_staff_message(report_id: str, token: str, req: AddMessageRequest):
         }
         await manager.broadcast_contact(report.area_id, report.id, payload)
         
-        await asyncio.to_thread(
-            send_push_to_leaders,
-            db,
+        dispatch_push_to_leaders(
             area.id,
             title=f"追記あり（{area.name}）",
             body=f"{report.staff_name}: {req.text}",

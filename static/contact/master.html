@@ -260,15 +260,24 @@
       const textarea = document.getElementById("reply-text");
       const text = textarea.value.trim();
       if (!text || !currentReportId) return;
-      const res = await fetch(`/api/contact/reports/${currentReportId}/reply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sender_name: getMasterName(), text }),
-      });
-      if (res.ok) {
-        textarea.value = "";
-        const r = await fetch(`/api/contact/reports/${currentReportId}`);
-        if (r.ok) renderThreadMessages(await r.json());
+
+      const replyBtn = document.getElementById("reply-btn");
+      if (replyBtn.disabled) return;
+      replyBtn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/contact/reports/${currentReportId}/reply`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sender_name: getMasterName(), text }),
+        });
+        if (res.ok) {
+          textarea.value = "";
+          const r = await fetch(`/api/contact/reports/${currentReportId}`);
+          if (r.ok) renderThreadMessages(await r.json());
+        }
+      } finally {
+        replyBtn.disabled = false;
       }
     }
 
